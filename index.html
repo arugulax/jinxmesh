@@ -101,7 +101,7 @@
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
   p code, li code { background: rgba(27, 118, 214, .12); padding: 1px 5px; border-radius: 5px; }
   .warn { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--sky); border-radius: 10px; padding: 14px 16px; font-size: 15.5px; color: var(--muted); }
-  footer { border-top: 1px solid var(--line); padding: 30px 0 90px; color: var(--muted); font-size: 14px; }
+  footer { border-top: 1px solid var(--line); padding: 30px 0 40px; color: var(--muted); font-size: 14px; }
   @media (max-width: 1140px) {
     .hero { grid-template-columns: 1fr; }
     .hero .device { margin: 0 auto; }
@@ -250,8 +250,9 @@ esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x0 firmware-thi
       <p>It is pretty stable, but use it at your own risk. JinxMesh is a hobby project for
       one board, the ThinkNode M9. Some features have only been tried in the simulator so
       far. Found a problem? <a href="https://github.com/arugulax/jinxmesh/issues">Open an issue</a>.</p>
-      <p>If JinxMesh is useful to you, you can
-      <a href="https://ko-fi.com/incognati">support the work on Ko-fi</a>.</p>
+      <p>If JinxMesh is useful to you, you can support the work:</p>
+      <div class="kofi"><script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support this project on Ko-fi', '#72a4f2', 'X3U521F6CP');kofiwidget2.draw();</script>
+      <noscript><a href="https://ko-fi.com/X3U521F6CP">Support this project on Ko-fi</a></noscript></div>
     </div>
   </div>
 </section>
@@ -268,15 +269,5 @@ esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x0 firmware-thi
 </footer>
 
 </div>
-
-<script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
-<script>
-  kofiWidgetOverlay.draw('incognati', {
-    'type': 'floating-chat',
-    'floating-chat.donateButton.text': 'Support me',
-    'floating-chat.donateButton.background-color': '#00b9fe',
-    'floating-chat.donateButton.text-color': '#fff'
-  });
-</script>
 </body>
 </html>
