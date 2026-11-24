@@ -60,21 +60,29 @@
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   a { color: var(--blue); }
-  .wrap { max-width: 960px; margin: 0 auto; padding: 0 22px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 22px; }
   header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
   header.top .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--ink); text-decoration: none; }
   header.top img { width: 34px; height: 34px; }
   nav a { margin-left: 20px; text-decoration: none; color: var(--muted); font-size: 15px; }
   nav a:hover { color: var(--blue); }
-  .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center; padding: 34px 0 54px; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 44px; align-items: center; padding: 34px 0 54px; }
   .hero h1 { font-size: clamp(30px, 4.6vw, 46px); line-height: 1.12; margin: 0 0 16px; letter-spacing: -0.02em; }
   .hero p.lead { font-size: 19px; color: var(--muted); margin: 0 0 26px; }
   .btn { display: inline-block; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: 600; margin: 0 10px 10px 0; }
   .btn.primary { background: var(--blue); color: #fff; }
   .btn.ghost { border: 1px solid var(--line); color: var(--ink); background: var(--card); }
   .note { font-size: 14px; color: var(--muted); margin-top: 8px; }
-  .device { background: #0b1322; border-radius: 18px; padding: 14px; box-shadow: 0 18px 50px rgba(11, 42, 107, .22); }
-  .device img, .shots img { display: block; width: 100%; height: auto; image-rendering: pixelated; border-radius: 6px; }
+  /* The screen is 320 x 240. Pictures of it are shown at exactly one or two times that size, never in between:
+     any other size smears or breaks the letters. */
+  .device { background: linear-gradient(160deg, #1b2740, #0a101c); border-radius: 22px; padding: 16px 16px 12px;
+            box-shadow: 0 22px 60px rgba(11, 42, 107, .28), inset 0 0 0 1px rgba(255, 255, 255, .07); width: max-content; }
+  .device img { display: block; width: 320px; height: 240px; image-rendering: pixelated; image-rendering: crisp-edges;
+                border-radius: 4px; box-shadow: 0 0 0 2px #05080f; }
+  .device.big img { width: 640px; height: 480px; }
+  .device figcaption { color: #9fb0cc; font-size: 13.5px; text-align: center; padding: 10px 0 0; }
+  .device .dots { display: flex; gap: 5px; justify-content: center; padding-top: 10px; }
+  .device .dots i { width: 5px; height: 5px; border-radius: 50%; background: #33435f; }
   section { padding: 46px 0; border-top: 1px solid var(--line); }
   h2 { font-size: 28px; margin: 0 0 14px; letter-spacing: -0.01em; }
   h3 { font-size: 18px; margin: 0 0 6px; }
@@ -82,9 +90,8 @@
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
   .card p { margin: 0; color: var(--muted); font-size: 15.5px; }
-  .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
-  .shots figure { margin: 0; background: #0b1322; border-radius: 12px; padding: 8px; }
-  .shots figcaption { color: #b9c7de; font-size: 13.5px; padding: 8px 4px 2px; }
+  .shots { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 34px; }
+  .shots figure { margin: 0; padding: 12px 12px 10px; border-radius: 18px; }
   ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 22px 0 0; }
   ol.steps > li { counter-increment: s; position: relative; padding: 0 0 26px 54px; }
   ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%;
@@ -94,10 +101,16 @@
   p code, li code { background: rgba(27, 118, 214, .12); padding: 1px 5px; border-radius: 5px; }
   .warn { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--sky); border-radius: 10px; padding: 14px 16px; font-size: 15.5px; color: var(--muted); }
   footer { border-top: 1px solid var(--line); padding: 30px 0 90px; color: var(--muted); font-size: 14px; }
+  @media (max-width: 1140px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero .device { margin: 0 auto; }
+  }
   @media (max-width: 780px) {
-    .hero, .two { grid-template-columns: 1fr; }
-    .grid, .shots { grid-template-columns: 1fr; }
+    .two, .grid { grid-template-columns: 1fr; }
     nav a { margin-left: 12px; }
+  }
+  @media (max-width: 720px) {
+    .device.big img { width: 320px; height: 240px; }
   }
 </style>
 </head>
@@ -126,9 +139,10 @@
     <a class="btn ghost" href="#install">How to install</a>
     <p class="note">Open source, GPL-3.0. Built on Meshtastic firmware 2.8.3. Unofficial.</p>
   </div>
-  <div class="device">
+  <figure class="device big" style="margin:0">
     <img src="site/home.png" width="640" height="480" alt="The JinxMesh Home screen: twelve tiles showing time, unread messages, radio, GPS, battery, nodes, nearest node, town, emergency messages, compass, trip and timer">
-  </div>
+    <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+  </figure>
 </div>
 
 <section id="why">
@@ -165,9 +179,9 @@
   </div>
 
   <div class="shots">
-    <figure><img src="site/chat.png" width="640" height="480" loading="lazy" alt="A channel chat with a quoted reply and a message being typed"><figcaption>A chat, with a quoted reply</figcaption></figure>
-    <figure><img src="site/map.png" width="640" height="480" loading="lazy" alt="A vector map with contour lines, roads, trails and two nodes marked"><figcaption>An offline vector map with nodes</figcaption></figure>
-    <figure><img src="site/apps.png" width="640" height="480" loading="lazy" alt="The Apps tab listing emergency messages, Nearby, Navigate, Town locator, Compass, Trip and Wardrive"><figcaption>The Apps tab</figcaption></figure>
+    <figure class="device"><img src="site/chat.png" width="320" height="240" loading="lazy" alt="A channel chat with a quoted reply and a message being typed"><figcaption>A chat, with a quoted reply</figcaption></figure>
+    <figure class="device"><img src="site/map.png" width="320" height="240" loading="lazy" alt="A vector map with contour lines, roads, trails and two nodes marked"><figcaption>An offline vector map with nodes</figcaption></figure>
+    <figure class="device"><img src="site/nearby.png" width="320" height="240" loading="lazy" alt="The Nearby app: lines from the device to the nodes around it, with the distance and bearing of the nearest"><figcaption>Nearby: who is where</figcaption></figure>
   </div>
 </section>
 
