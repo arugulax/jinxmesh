@@ -1,4 +1,6 @@
 *.png
+# the pictures of the web page are kept
+!site/*.png
 backup/
 __pycache__/
 sim/prefs-before/
