@@ -46,6 +46,9 @@ not offered for other boards.
 
 ## Install
 
+The easy way is the [web flasher](https://jinxmesh.com/flash/): open it in Chrome or Edge on a
+computer, plug the M9 in and press a button. It can also load maps onto the SD card. By hand:
+
 1. Download the latest files from the [Releases](../../releases) page.
 2. Flash the M9 over USB. A first install erases the device; later updates keep your settings,
    channels and chats.
@@ -117,6 +120,7 @@ tried on a device and approved:
 | `main` | `dev` |
 | `firmware-m9-kb` | `firmware-dev` |
 | `device-ui-kbview` | `device-ui-dev` |
+| `gh-pages` (the web site and its flasher) | `gh-pages-dev` |
 
 A release is always built from the published branches. The development branches may be
 ahead of the latest release, and may be broken.
