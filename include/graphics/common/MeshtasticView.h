@@ -90,8 +90,12 @@ class MeshtasticView : public DeviceGUI
     virtual void updateEnvironmentMetrics(uint32_t nodeNum, const meshtastic_EnvironmentMetrics &metrics) {}
     virtual void updateAirQualityMetrics(uint32_t nodeNum, const meshtastic_AirQualityMetrics &metrics) {}
     virtual void updatePowerMetrics(uint32_t nodeNum, const meshtastic_PowerMetrics &metrics) {}
+    virtual void updateLocalStats(uint32_t nodeNum, const meshtastic_LocalStats &stats) {}
     virtual void updateSignalStrength(uint32_t nodeNum, int32_t rssi, float snr);
     virtual void updateHopsAway(uint32_t nodeNum, uint8_t hopsAway) {}
+    virtual void updateNodeFlags(uint32_t nodeNum, bool favorite, bool ignored, bool muted) {}
+    virtual void updateRegionPresets(const meshtastic_LoRaRegionPresetMap &map) {}
+    virtual void notifyClient(const meshtastic_ClientNotification &notification) {}
     virtual void updateConnectionStatus(const meshtastic_DeviceConnectionStatus &status) {}
 
     // methods to update device config
@@ -136,10 +140,25 @@ class MeshtasticView : public DeviceGUI
 
     virtual void handleResponse(uint32_t from, uint32_t id, const meshtastic_Routing &routing, const meshtastic_MeshPacket &p) {}
     virtual void textMessageStatus(uint32_t requestId, LogMessage::MsgStatus status) {}
+    // why the radio could not send a text message (a meshtastic_Routing_Error); comes before its status
+    virtual void textMessageError(uint32_t requestId, uint8_t reason) {}
     virtual void handleResponse(uint32_t from, uint32_t id, const meshtastic_RouteDiscovery &route) {}
     virtual void handlePositionResponse(uint32_t from, uint32_t request_id, int32_t rx_rssi, float rx_snr, bool isNeighbor) {}
     virtual void packetReceived(const meshtastic_MeshPacket &p);
     virtual void newMessage(uint32_t from, uint32_t to, uint8_t ch, const char *msg, uint32_t &msgtime, bool restore = false) {}
+    // a received text with its packet id and the id it replies to; views that show replies override this one
+    virtual void newTextMessage(uint32_t from, uint32_t to, uint8_t ch, const char *msg, uint32_t &msgtime, uint32_t id,
+                                uint32_t replyId)
+    {
+        newMessage(from, to, ch, msg, msgtime);
+    }
+    // an emoji sent as a reaction to the message with packet id replyId; views without reactions show it as a text
+    virtual void newReaction(uint32_t from, uint32_t to, uint8_t ch, const char *emoji, uint32_t &msgtime, uint32_t id,
+                             uint32_t replyId)
+    {
+        newTextMessage(from, to, ch, emoji, msgtime, id, replyId);
+    }
+    virtual void newWaypoint(uint32_t from, uint8_t ch, const meshtastic_Waypoint &waypoint) {}
     virtual void restoreMessage(const LogMessage &msg) {}
 
     virtual void notifyRestoreMessages(int32_t percentage) {}

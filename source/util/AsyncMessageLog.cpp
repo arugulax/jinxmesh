@@ -61,12 +61,21 @@ bool AsyncMessageLog::start()
     running = true;
     exited = false;
 #ifdef ARDUINO_ARCH_ESP32
+    // no memory for its stack: the caller asks again in every round, so try, and say so, once in ten seconds
+    static uint32_t failedAt = 0;
+    if (failedAt && xTaskGetTickCount() - failedAt < pdMS_TO_TICKS(10000)) {
+        running = false;
+        exited = true;
+        return false;
+    }
     if (xTaskCreate(workerTask, "messageLog", 4096, this, 1, nullptr) != pdPASS) {
         running = false;
         exited = true;
+        failedAt = xTaskGetTickCount() | 1;
         ILOG_ERROR("Cannot start message log worker");
         return false;
     }
+    failedAt = 0;
 #else
     worker = std::thread(&AsyncMessageLog::workerLoop, this);
 #endif

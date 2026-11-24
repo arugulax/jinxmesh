@@ -70,9 +70,15 @@ class ViewController
 
     virtual bool sendConfig(const char ringtone[231], uint32_t nodeId = 0);
     virtual void sendTextMessage(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t msgTime, uint32_t requestId, bool usePkc,
-                                 const char *textmsg);
+                                 const char *textmsg, uint32_t replyId = 0);
+    // an emoji as reaction to the message with the packet id replyId
+    virtual void sendReaction(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t msgTime, uint32_t requestId, bool usePkc,
+                              const char *emoji, uint32_t replyId);
+    virtual bool sendWaypoint(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t requestId,
+                              const meshtastic_Waypoint &waypoint);
     virtual void removeTextMessages(uint32_t from, uint32_t to, uint8_t ch);
     virtual bool requestPosition(uint32_t to, uint8_t ch, uint32_t requestId);
+    virtual bool requestLocalStats(void);
     virtual void traceRoute(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t requestId);
 
     // helpers
@@ -92,7 +98,8 @@ class ViewController
     virtual bool send(uint32_t to, meshtastic_PortNum portnum, const meshtastic_Data_payload_t &payload, bool wantRsp = false);
     // generic send method to send a decoded byte string in a meshpacket to radio
     virtual bool send(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t requestId, meshtastic_PortNum portnum, bool wantRsp,
-                      bool usePkc, const unsigned char bytes[meshtastic_Constants_DATA_PAYLOAD_LEN], size_t len);
+                      bool usePkc, const unsigned char bytes[meshtastic_Constants_DATA_PAYLOAD_LEN], size_t len,
+                      uint32_t replyId = 0);
     virtual bool receive(void);
     // request initial config from radio
     virtual void requestConfig(void);

@@ -21,9 +21,16 @@ class MapTile : public OSMTiles<lv_obj_t>::Tile
     void removeImage(void);
     ~MapTile();
 
+    // forget the decoded tile kept for stretching (style or card changed)
+    static void dropStretchSource(void);
+
     bool isPending = false; // enqueued in AsyncTileLoader, result not yet applied
+    uint8_t stretch = 0;    // zoom levels the shown image was stretched over, 0: the tile itself (or none)
 
   protected:
+    // show the matching part of a tile from a lower zoom level instead
+    bool loadStretched(void);
+
     int16_t x;     // x-pos in parent panel
     int16_t y;     // y-pos in parent panel
     lv_obj_t *img; // lvgl tile image

@@ -4,12 +4,37 @@
 #include "lvgl.h"
 #include "misc/cache/lv_cache.h" // lv_image_cache_drop() is not exported by lvgl.h in 9.6
 #include "util/ILog.h"
+#include "util/PNGDecoder.h"
 
 #include <assert.h>
+#include <cstring>
 
 LV_IMAGE_DECLARE(img_no_tile_image);
 
 OSMTiles<lv_obj_t> *osm = nullptr;
+
+namespace
+{
+// the tile last decoded for stretching: its parts usually fill several tiles of the screen
+lv_image_dsc_t *stretchSource = nullptr;
+char stretchName[IMG_PATH_LEN] = "";
+
+bool ownedImage(const void *src)
+{
+    if (!src || lv_image_src_get_type(src) != LV_IMAGE_SRC_VARIABLE)
+        return false;
+    const lv_image_dsc_t *dsc = (const lv_image_dsc_t *)src;
+    return dsc->header.magic == LV_IMAGE_HEADER_MAGIC && (dsc->header.flags & LV_IMAGE_FLAGS_USER1);
+}
+
+void freeImage(const lv_image_dsc_t *dsc)
+{
+    lv_image_cache_drop(dsc);
+    if (dsc->data)
+        lv_free((void *)dsc->data);
+    lv_free((void *)dsc);
+}
+} // namespace
 
 MapTile::MapTile(uint32_t xTile, uint32_t yTile)
     : OSMTiles<lv_obj_t>::Tile(xTile, yTile, MapTileSettings::getZoomLevel()), img(nullptr), lbl(nullptr)
@@ -45,6 +70,9 @@ bool MapTile::load(lv_obj_t *p, int16_t posx, int16_t posy, const lv_image_dsc_t
 
     // use configured TileService
     bool result = osm->load(*this, img);
+    stretch = 0;
+    if (!result)
+        result = loadStretched();
     if (!result && img_src) {
         // ILOG_DEBUG("set no-tile-image (%d/%d/%d)", MapTileSettings::getZoomLevel(), xTile, yTile);
         lv_image_set_src((lv_obj_t *)img, img_src);
@@ -60,6 +88,50 @@ bool MapTile::load(lv_obj_t *p, int16_t posx, int16_t posy, const lv_image_dsc_t
         }
     }
     return result;
+}
+
+/**
+ * There is no tile at this zoom level: show the part of its parent that covers the same ground at
+ * twice the size, or of its grandparent at four times. Lets the map zoom in past the tiles a style holds.
+ */
+bool MapTile::loadStretched(void)
+{
+    for (uint8_t levels = 1; levels <= MapTileSettings::getStretch() && levels < zoomLevel; levels++) {
+        OSMTiles<lv_obj_t>::Tile ancestor(xTile >> levels, yTile >> levels, zoomLevel - levels);
+        osm->resolveFilename(ancestor);
+        if (!stretchSource || strcmp(stretchName, ancestor.filename) != 0) {
+            // decode it through this tile's image object, then take it over
+            if (!osm->load(ancestor, img))
+                continue;
+            const void *src = lv_image_get_src(img);
+            if (!ownedImage(src))
+                continue;
+            lv_image_set_src(img, nullptr);
+            dropStretchSource();
+            stretchSource = (lv_image_dsc_t *)src;
+            strncpy(stretchName, ancestor.filename, sizeof(stretchName) - 1);
+        }
+        const uint32_t mask = (1u << levels) - 1;
+        lv_image_dsc_t *part = stretchImg(stretchSource, levels, xTile & mask, yTile & mask);
+        if (!part)
+            return false;
+        lv_image_set_src(img, part);
+        if (lv_image_get_src(img) != part) {
+            freeImage(part);
+            return false;
+        }
+        stretch = levels;
+        return true;
+    }
+    return false;
+}
+
+void MapTile::dropStretchSource(void)
+{
+    if (stretchSource)
+        freeImage(stretchSource);
+    stretchSource = nullptr;
+    stretchName[0] = '\0';
 }
 
 bool MapTile::move(int16_t posx, int16_t posy)
@@ -100,6 +172,7 @@ void MapTile::applyImage(lv_image_dsc_t *img_dsc)
         }
     }
     lv_image_set_src(img, img_dsc);
+    stretch = 0;
     lv_obj_set_style_opa(img, 255, (lv_style_selector_t)LV_PART_MAIN | (lv_style_selector_t)LV_STATE_DEFAULT);
     // remove the (z/x/y) placeholder label that load() adds in non-debug mode
     if (!MapTileSettings::getDebug()) {

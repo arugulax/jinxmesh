@@ -166,8 +166,10 @@ template <class LGFX> void LGFXDriver<LGFX>::task_handler(void)
                     if (forcedWakeup
 #ifndef DISPLAY_POWER_BUTTON_ONLY
                         || (pin_int >= 0 && DisplayDriver::view->sleep(pin_int)) ||
-                        (screenTimeout + 50 > lv_display_get_inactive_time(lv_display_get_default()) &&
-                         !DisplayDriver::view->isScreenLocked())
+                        (this->manuallyBlanked
+                             ? lv_display_get_inactive_time(lv_display_get_default()) + 100 < lv_tick_elaps(this->blankedAt)
+                             : (screenTimeout + 50 > lv_display_get_inactive_time(lv_display_get_default()) &&
+                                !DisplayDriver::view->isScreenLocked()))
 #endif
                     ) {
                         delay(2); // let the CPU finish to restore all register in case of light sleep

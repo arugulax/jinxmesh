@@ -33,6 +33,13 @@ class DisplayDriver
         lv_timer_periodic_handler();
     }
     virtual void forceWakeup(void) {}
+    // Screen off right now, whatever the timeout says. Only input after this wakes it: without the
+    // tick, a screen turned off within its timeout would count the key that did it as activity.
+    void blankNow(void)
+    {
+        blankedAt = lv_tick_get();
+        manuallyBlanked = true;
+    }
     virtual bool isPowersaving() { return false; }
     virtual void toggleDisplay(void);
     virtual void printConfig(void) {}
@@ -67,6 +74,7 @@ class DisplayDriver
     uint16_t screenWidth;
     uint16_t screenHeight;
     bool manuallyBlanked = false;
+    uint32_t blankedAt = 0; // tick of blankNow()
 
   private:
     std::atomic<bool> toggleRequested{false};

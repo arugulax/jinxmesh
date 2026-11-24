@@ -238,7 +238,8 @@ void MapPanel::loadTile(uint32_t hash, int tx, int ty)
 {
     constexpr uint32_t RETRY_MS = 10000;
     bool ok = tiles[hash]->load(panel, tx, ty, noTileImage);
-    if (ok) {
+    if (ok && (!tiles[hash]->stretch || !service->hasAsync())) {
+        // a stretched tile is as good as it gets when nothing can fetch the real one
         failedTilesRetryAt_.erase(hash);
     } else if (service->hasAsync()) {
         osm->resolveFilename(*tiles[hash]);
@@ -248,6 +249,16 @@ void MapPanel::loadTile(uint32_t hash, int tx, int ty)
     } else {
         failedTilesRetryAt_[hash] = lv_tick_get() + RETRY_MS; // upsert: add or push deadline
     }
+}
+
+uint8_t MapPanel::getStretch(void) const
+{
+    uint8_t stretch = 0;
+    for (const auto &it : tiles) {
+        if (it.second->stretch > stretch)
+            stretch = it.second->stretch;
+    }
+    return stretch;
 }
 
 void MapPanel::setTileService(ITileService *s)

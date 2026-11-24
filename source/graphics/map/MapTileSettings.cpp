@@ -17,6 +17,7 @@ char MapTileSettings::tileFormat[MapTileSettings::TILE_FORMAT_SIZE] = "png"; // 
 bool MapTileSettings::pmTiles = false;                                       // selected style is a .pmtiles archive
 bool MapTileSettings::debug = false;                                         // draw tile frame and info
 bool MapTileSettings::save = false;                                          // ok to save tile back to SD card
+uint8_t MapTileSettings::stretch = 0;                                        // levels a missing tile is stretched from
 #ifdef MAP_TILES_GREY
 bool MapTileSettings::colorTiles = false;
 #else

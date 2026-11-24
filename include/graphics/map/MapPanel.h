@@ -57,6 +57,8 @@ class MapPanel
     void setNoTileImage(const lv_image_dsc_t *img_src);
     void forceRedraw(bool onlyObjects = false);
     bool redrawComplete(void) { return redrawCompleted; }
+    // most zoom levels a tile on screen is stretched over, 0: none is
+    uint8_t getStretch(void) const;
     // for debugging
     void printTiles(void);
     // must be called for incremental drawing of all changes

@@ -16,6 +16,19 @@ fs::FS &persistentFS = LittleFS;
 
 const size_t DATA_PAYLOAD_LEN = meshtastic_Constants_DATA_PAYLOAD_LEN;
 constexpr const char *logDir = "/messages";
+// the last byte of a logged message, present when it is not an ordinary text
+constexpr uint8_t c_logReaction = 1;
+
+#if defined(USE_KEYBOARD_VIEW)
+// the keyboard view pages through its history instead of building a widget per message, so it can keep much more
+constexpr uint32_t c_logSize = 512 * 1024;
+constexpr uint32_t c_logFiles = 160;
+#else
+constexpr uint32_t c_logSize = 102400;
+constexpr uint32_t c_logFiles = 25;
+#endif
+// time per run that goes into reading stored messages while starting up
+constexpr uint32_t c_restoreSlice = 15;
 
 /**
  * @brief mediate between GUI view and client interface
@@ -27,7 +40,7 @@ ViewController::ViewController()
 }
 
 ViewController::ViewController(AsyncMessageLog::Writer writer, AsyncMessageLog::Clear clear)
-    : view(nullptr), log(persistentFS, logDir, sizeof(LogMessage)), messageLog(std::move(writer), std::move(clear)),
+    : view(nullptr), log(persistentFS, logDir, sizeof(LogMessage), c_logSize, c_logFiles), messageLog(std::move(writer), std::move(clear)),
       client(nullptr), sendId(1), myNodeNum(0), setupDone(false), configCompleted(false), messagesRestored(false),
       requestConfigRequired(true)
 {
@@ -505,24 +518,80 @@ void ViewController::setConfigRequested(bool required)
     requestConfigRequired = required;
 }
 
+/**
+ * Text as it goes into the message log: the packet id and the id it replies to follow the text behind a NUL,
+ * where views that read the entry as a C string never look. Texts too long for that are logged without.
+ * One more byte follows for what is not an ordinary text (c_logReaction).
+ */
+static size_t logPayload(uint8_t out[messagePayloadSize], const uint8_t *text, size_t len, uint32_t id, uint32_t replyId,
+                         uint8_t kind = 0)
+{
+    len = strnlen((const char *)text, std::min(len, (size_t)messagePayloadSize - 1));
+    memcpy(out, text, len);
+    size_t size = len + 1 + 2 * sizeof(uint32_t);
+    if (size + 1 >= messagePayloadSize)
+        return len;
+    out[len] = 0;
+    memcpy(out + len + 1, &id, sizeof(id));
+    memcpy(out + len + 1 + sizeof(id), &replyId, sizeof(replyId));
+    if (kind)
+        out[size++] = kind;
+    return size;
+}
+
 void ViewController::sendTextMessage(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t msgTime, uint32_t requestId, bool usePkc,
-                                     const char *textmsg)
+                                     const char *textmsg, uint32_t replyId)
 {
     size_t msgLen = strlen(textmsg);
     assert(msgLen <= (size_t)DATA_PAYLOAD_LEN);
 
-    if (!messageLog.append(std::make_unique<LogMessageEnv>(myNodeNum, to, ch, msgTime, LogMessage::eDefault, false, msgLen,
-                                                           (const uint8_t *)textmsg),
-                           requestId, c_request_timeout)) {
+    uint8_t logged[messagePayloadSize];
+    const size_t loggedLen = logPayload(logged, (const uint8_t *)textmsg, msgLen, requestId, replyId);
+    if (!messageLog.append(
+            std::make_unique<LogMessageEnv>(myNodeNum, to, ch, msgTime, LogMessage::eDefault, false, loggedLen, logged),
+            requestId, c_request_timeout)) {
         ILOG_ERROR("Message log is shutting down; outgoing message rejected");
         view->textMessageStatus(requestId, LogMessage::eFailed);
         return;
     }
     if (!send(to, ch, hopLimit, requestId, meshtastic_PortNum_TEXT_MESSAGE_APP, false, usePkc, (const uint8_t *)textmsg,
-              msgLen)) {
+              msgLen, replyId)) {
         messageLog.setStatus(requestId, LogMessage::eFailed, true);
         view->textMessageStatus(requestId, LogMessage::eFailed);
     }
+}
+
+void ViewController::sendReaction(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t msgTime, uint32_t requestId, bool usePkc,
+                                  const char *emoji, uint32_t replyId)
+{
+    const size_t len = std::min(strlen(emoji), DATA_PAYLOAD_LEN);
+    uint8_t logged[messagePayloadSize];
+    const size_t loggedLen = logPayload(logged, (const uint8_t *)emoji, len, requestId, replyId, c_logReaction);
+    if (!messageLog.append(
+            std::make_unique<LogMessageEnv>(myNodeNum, to, ch, msgTime, LogMessage::eDefault, false, loggedLen, logged)))
+        ILOG_ERROR("Message log is shutting down; reaction not persisted");
+
+    ILOG_DEBUG("sending reaction to radio id=0x%x, to=0x%08x, ch=%u, replyId=0x%x", requestId, to, (unsigned int)ch, replyId);
+    meshtastic_ToRadio toRadio{.which_payload_variant = meshtastic_ToRadio_packet_tag,
+                               .packet{.to = to,
+                                       .channel = ch,
+                                       .which_payload_variant = meshtastic_MeshPacket_decoded_tag,
+                                       .decoded{.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP, .reply_id = replyId, .emoji = 1},
+                                       .id = requestId,
+                                       .hop_limit = hopLimit,
+                                       .want_ack = (to != 0),
+                                       .pki_encrypted = usePkc}};
+    toRadio.packet.decoded.payload.size = (pb_size_t)len;
+    memcpy(toRadio.packet.decoded.payload.bytes, emoji, len);
+    client->send(std::move(toRadio));
+}
+
+bool ViewController::sendWaypoint(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t requestId,
+                                  const meshtastic_Waypoint &waypoint)
+{
+    meshtastic_Data_payload_t payload;
+    payload.size = pb_encode_to_bytes(payload.bytes, DATA_PAYLOAD_LEN, &meshtastic_Waypoint_msg, &waypoint);
+    return send(to, ch, hopLimit, requestId, meshtastic_PortNum_WAYPOINT_APP, false, false, payload.bytes, payload.size);
 }
 
 bool ViewController::requestPosition(uint32_t to, uint8_t ch, uint32_t requestId)
@@ -541,6 +610,21 @@ bool ViewController::requestPosition(uint32_t to, uint8_t ch, uint32_t requestId
                                    .id = requestId,
                                    .hop_limit = 0,
                                    .want_ack = false}});
+}
+
+/**
+ * Ask the own radio for its packet counters, noise floor and memory. The answer comes as telemetry
+ * and reaches the view through updateLocalStats().
+ */
+bool ViewController::requestLocalStats(void)
+{
+    if (!myNodeNum)
+        return false;
+    meshtastic_Telemetry request{};
+    request.which_variant = meshtastic_Telemetry_local_stats_tag;
+    meshtastic_Data_payload_t payload;
+    payload.size = pb_encode_to_bytes(payload.bytes, DATA_PAYLOAD_LEN, &meshtastic_Telemetry_msg, &request);
+    return send(myNodeNum, meshtastic_PortNum_TELEMETRY_APP, payload, true);
 }
 
 void ViewController::traceRoute(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t requestId)
@@ -575,10 +659,11 @@ bool ViewController::send(uint32_t to, meshtastic_PortNum portnum, const meshtas
  * generic send method for sending meshpackets with encoded payload
  */
 bool ViewController::send(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t requestId, meshtastic_PortNum portnum, bool wantRsp,
-                          bool usePkc, const unsigned char bytes[meshtastic_Constants_DATA_PAYLOAD_LEN], size_t len)
+                          bool usePkc, const unsigned char bytes[meshtastic_Constants_DATA_PAYLOAD_LEN], size_t len,
+                          uint32_t replyId)
 {
-    ILOG_DEBUG("sending meshpacket to radio id=0x%x, to=0x%08x(%u), ch=%u, portnum=%u, len=%u, wantRsp=%d", requestId, to, to,
-               (unsigned int)ch, portnum, len, wantRsp);
+    ILOG_DEBUG("sending meshpacket to radio id=0x%x, to=0x%08x(%u), ch=%u, portnum=%u, len=%u, wantRsp=%d, replyId=0x%x",
+               requestId, to, to, (unsigned int)ch, portnum, len, wantRsp, replyId);
     // send requires movable lvalue, i.e. a temporary object
     return client->send(meshtastic_ToRadio{
         .which_payload_variant = meshtastic_ToRadio_packet_tag,
@@ -619,7 +704,8 @@ bool ViewController::send(uint32_t to, uint8_t ch, uint8_t hopLimit, uint32_t re
                                    bytes[216], bytes[217], bytes[218], bytes[219], bytes[220], bytes[221], bytes[222], bytes[223],
                                    bytes[224], bytes[225], bytes[226], bytes[227], bytes[228], bytes[229], bytes[230], bytes[231],
                                    bytes[232]}},
-                .want_response = wantRsp}, // FIXME: traceRoute, requestPosition, remote config: true
+                .want_response = wantRsp, // FIXME: traceRoute, requestPosition, remote config: true
+                .reply_id = replyId},
             .id = requestId,
             .hop_limit = hopLimit,
             .want_ack = (to != 0),
@@ -684,14 +770,21 @@ void ViewController::restoreTextMessages(void)
     static uint32_t msgTotalSize = 0;
     LogMessageEnv msg;
 
-    if (log.readNext(msg)) {
+    // a long history takes minutes at one message per run; the display and the radio can spare a slice of each
+    const uint32_t start = millis();
+    bool more;
+    while ((more = log.readNext(msg))) {
         if (msg.ch >= c_max_channels) {
             ILOG_WARN("skipping stored message with invalid channel %d", (int)msg.ch);
-            return;
+        } else {
+            msgCounter++;
+            msgTotalSize += msg.size();
+            view->restoreMessage(msg);
         }
-        msgCounter++;
-        msgTotalSize += msg.size();
-        view->restoreMessage(msg);
+        if (millis() - start >= c_restoreSlice)
+            break;
+    }
+    if (more) {
         view->notifyRestoreMessages(msgTotalSize * 100 / log.size());
     } else {
         ILOG_INFO("restoring %d messages completed in %dms.", msgCounter, millis() - restoreTimer);
@@ -738,8 +831,11 @@ bool ViewController::handleFromRadio(const meshtastic_FromRadio &from)
         view->setMyInfo(info.my_node_num, info.device_id);
         myNodeNum = info.my_node_num;
     } else {
-        if (setupDone || (from.which_payload_variant == meshtastic_FromRadio_config_tag &&
-                          from.config.which_payload_variant == meshtastic_Config_bluetooth_tag)) {
+        // With Bluetooth on the radio serves the phone and sends this screen next to nothing, so the setup never
+        // finishes: what it does send then has to get through, the PIN of a pairing (a notification) above all
+        if (setupDone || from.which_payload_variant == meshtastic_FromRadio_clientNotification_tag ||
+            (from.which_payload_variant == meshtastic_FromRadio_config_tag &&
+             from.config.which_payload_variant == meshtastic_Config_bluetooth_tag)) {
             switch (from.which_payload_variant) {
             case meshtastic_FromRadio_packet_tag: {
                 const meshtastic_MeshPacket &p = from.packet;
@@ -766,6 +862,7 @@ bool ViewController::handleFromRadio(const meshtastic_FromRadio &from)
                 if (node.has_device_metrics) {
                     view->updateMetrics(node.num, node.device_metrics);
                 }
+                view->updateNodeFlags(node.num, node.is_favorite, node.is_ignored, node.is_muted);
                 break;
             }
             case meshtastic_FromRadio_config_tag: {
@@ -945,6 +1042,14 @@ bool ViewController::handleFromRadio(const meshtastic_FromRadio &from)
                 }
                 break;
             }
+            case meshtastic_FromRadio_clientNotification_tag: {
+                view->notifyClient(from.clientNotification);
+                break;
+            }
+            case meshtastic_FromRadio_region_presets_tag: {
+                view->updateRegionPresets(from.region_presets);
+                break;
+            }
             case meshtastic_FromRadio_rebooted_tag: {
                 view->notifyResync(true);
                 setConfigRequested(true);
@@ -1002,9 +1107,18 @@ bool ViewController::packetReceived(const meshtastic_MeshPacket &p)
             ILOG_WARN("ignoring message with invalid channel %d", (int)p.channel);
             break;
         }
-        view->newMessage(p.from, p.to, p.channel, (const char *)p.decoded.payload.bytes, time);
-        if (!messageLog.append(std::make_unique<LogMessageEnv>(p.from, p.to, p.channel, time, LogMessage::eDefault, false,
-                                                               p.decoded.payload.size, p.decoded.payload.bytes)))
+        // apps send a reaction as a text that holds the emoji and carries the id of the message it is for
+        const bool reaction = p.decoded.emoji && p.decoded.reply_id && p.decoded.portnum == meshtastic_PortNum_TEXT_MESSAGE_APP;
+        if (reaction)
+            view->newReaction(p.from, p.to, p.channel, (const char *)p.decoded.payload.bytes, time, p.id, p.decoded.reply_id);
+        else
+            view->newTextMessage(p.from, p.to, p.channel, (const char *)p.decoded.payload.bytes, time, p.id,
+                                 p.decoded.reply_id);
+        uint8_t logged[messagePayloadSize];
+        const size_t loggedLen = logPayload(logged, p.decoded.payload.bytes, p.decoded.payload.size, p.id, p.decoded.reply_id,
+                                            reaction ? c_logReaction : 0);
+        if (!messageLog.append(
+                std::make_unique<LogMessageEnv>(p.from, p.to, p.channel, time, LogMessage::eDefault, false, loggedLen, logged)))
             ILOG_ERROR("Message log is shutting down; incoming message not persisted");
         break;
     }
@@ -1056,7 +1170,7 @@ bool ViewController::packetReceived(const meshtastic_MeshPacket &p)
                 return false;
             }
             case meshtastic_Telemetry_local_stats_tag: {
-                ILOG_DEBUG("meshtastic_Telemetry_local_stats_tag not implemented!");
+                view->updateLocalStats(p.from, telemetry.variant.local_stats);
                 return false;
             }
             default:
@@ -1119,6 +1233,8 @@ bool ViewController::packetReceived(const meshtastic_MeshPacket &p)
                     ILOG_WARN("got unhandled Routing_Error: %d", routing.error_reason);
                     break;
                 }
+                if (failed)
+                    view->textMessageError(p.decoded.request_id, (uint8_t)routing.error_reason);
                 view->textMessageStatus(p.decoded.request_id, status);
             } else {
                 view->handleResponse(p.from, p.decoded.request_id, routing, p);
@@ -1211,6 +1327,16 @@ bool ViewController::packetReceived(const meshtastic_MeshPacket &p)
             }
         } else {
             ILOG_ERROR("Error decoding protobuf meshtastic_AdminMessage!");
+            return false;
+        }
+        break;
+    }
+    case meshtastic_PortNum_WAYPOINT_APP: {
+        meshtastic_Waypoint waypoint;
+        if (pb_decode_from_bytes(p.decoded.payload.bytes, p.decoded.payload.size, &meshtastic_Waypoint_msg, &waypoint)) {
+            view->newWaypoint(p.from, p.channel, waypoint);
+        } else {
+            ILOG_ERROR("Error decoding protobuf meshtastic_Waypoint");
             return false;
         }
         break;

@@ -69,6 +69,10 @@ class MapTileSettings
     static bool getDebug(void) { return debug; }
     static void setDebug(bool on) { debug = on; }
 
+    // zoom levels a tile may be stretched from when the style has none at the wanted level (0: off)
+    static uint8_t getStretch(void) { return stretch; }
+    static void setStretch(uint8_t levels) { stretch = levels; }
+
     static bool saveOK(void) { return save; }
     static void setSaveOK(bool ok) { save = ok; }
 
@@ -112,4 +116,5 @@ class MapTileSettings
     static bool pmTiles;
     static bool debug;
     static bool save;
+    static uint8_t stretch;
 };

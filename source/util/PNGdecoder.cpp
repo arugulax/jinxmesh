@@ -1,6 +1,7 @@
 #include "core/lv_global.h"
 #include "util/ILog.h"
 #include <PNGdec.h>
+#include <cstring>
 #include <mutex>
 #include <new> // Required for placement new syntax
 
@@ -235,4 +236,55 @@ bool decodeImgGrey(const void *data, size_t size, lv_image_dsc_t **img)
 
     ILOG_DEBUG("decodeImgGrey took %d ms", millis() - start);
     return true;
+}
+
+// ------------------------------------------------------------------------------
+
+/**
+ * Stand-in for a tile of a deeper zoom level: the tile is split 2^levels times each way, the part at
+ * column/row is cut out and enlarged to the size of the whole tile by repeating its pixels.
+ * The result is owned by the caller like a decoded tile.
+ */
+lv_image_dsc_t *stretchImg(const lv_image_dsc_t *src, uint8_t levels, uint32_t column, uint32_t row)
+{
+    if (!src || !src->data || levels == 0 || levels > 4 || column >= (1u << levels) || row >= (1u << levels))
+        return nullptr;
+    const uint32_t pixel = src->header.cf == LV_COLOR_FORMAT_RGB565 ? 2 : src->header.cf == LV_COLOR_FORMAT_L8 ? 1 : 0;
+    const uint32_t width = src->header.w, height = src->header.h;
+    const uint32_t partWidth = width >> levels, partHeight = height >> levels;
+    if (!pixel || !partWidth || !partHeight || src->data_size < width * height * pixel)
+        return nullptr;
+
+    uint8_t *data = (uint8_t *)lv_malloc(width * height * pixel);
+    if (!data)
+        return nullptr;
+    lv_image_dsc_t *img = (lv_image_dsc_t *)lv_malloc_zeroed(sizeof(lv_image_dsc_t));
+    if (!img) {
+        lv_free(data);
+        return nullptr;
+    }
+
+    const uint32_t line = width * pixel;
+    for (uint32_t y = 0; y < height; y++) {
+        uint8_t *to = data + y * line;
+        if (y & ((1u << levels) - 1)) {
+            memcpy(to, to - line, line); // same source row as the line above
+            continue;
+        }
+        const uint8_t *from = src->data + ((row * partHeight + (y >> levels)) * width + column * partWidth) * pixel;
+        if (pixel == 2) {
+            for (uint32_t x = 0; x < width; x++)
+                ((uint16_t *)to)[x] = ((const uint16_t *)from)[x >> levels];
+        } else {
+            for (uint32_t x = 0; x < width; x++)
+                to[x] = from[x >> levels];
+        }
+    }
+
+    img->header = src->header;
+    img->header.flags = LV_IMAGE_FLAGS_MODIFIABLE | LV_IMAGE_FLAGS_USER1;
+    img->header.reserved_2 = ++imgSerial;
+    img->data = data;
+    img->data_size = width * height * pixel;
+    return img;
 }
