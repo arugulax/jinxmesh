@@ -80,7 +80,12 @@
             box-shadow: 0 22px 60px rgba(11, 42, 107, .28), inset 0 0 0 1px rgba(255, 255, 255, .07); width: max-content; }
   .device img { display: block; width: 320px; height: 240px; image-rendering: pixelated; image-rendering: crisp-edges;
                 border-radius: 4px; box-shadow: 0 0 0 2px #05080f; }
-  .device.big img { width: 640px; height: 480px; }
+  .device.rotate .frames { position: relative; width: 320px; height: 240px; }
+  .device.rotate .frames img { position: absolute; inset: 0; transition: opacity .5s; }
+  .device.rotate .frames img[hidden] { display: block; opacity: 0; }
+  .device.rotate .dots i { cursor: pointer; width: 7px; height: 7px; }
+  .device.rotate .dots i.on { background: #5fb0ff; }
+  @media (prefers-reduced-motion: reduce) { .device.rotate .frames img { transition: none; } }
   .device figcaption { color: #9fb0cc; font-size: 13.5px; text-align: center; padding: 10px 0 0; }
   .device .dots { display: flex; gap: 5px; justify-content: center; padding-top: 10px; }
   .device .dots i { width: 5px; height: 5px; border-radius: 50%; background: #33435f; }
@@ -110,9 +115,7 @@
     .two, .grid { grid-template-columns: 1fr; }
     nav a { margin-left: 12px; }
   }
-  @media (max-width: 720px) {
-    .device.big img { width: 320px; height: 240px; }
-  }
+
 </style>
 </head>
 <body>
@@ -141,9 +144,16 @@
     <a class="btn ghost" href="https://github.com/arugulax/jinxmesh/releases/latest">Download the files</a>
     <p class="note">Open source, GPL-3.0. Built on Meshtastic firmware 2.8.3. Unofficial.</p>
   </div>
-  <figure class="device big" style="margin:0">
-    <img src="site/home.png" width="640" height="480" alt="The JinxMesh Home screen: twelve tiles showing time, unread messages, radio, GPS, battery, nodes, nearest node, town, emergency messages, compass, trip and timer">
-    <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+  <figure class="device rotate" style="margin:0" id="rotate">
+    <div class="frames">
+      <img src="site/home.png" width="320" height="240" alt="The JinxMesh Home screen: twelve tiles showing time, unread messages, radio, GPS, battery, nodes, nearest node, town, emergency messages, compass, trip and timer" data-caption="Home: twelve live tiles">
+      <img src="site/chat.png" width="320" height="240" alt="A channel chat with a quoted reply and a message being typed" data-caption="Chats, with quoted replies" hidden>
+      <img src="site/map.png" width="320" height="240" alt="A vector map with contour lines, roads, trails and two nodes marked" data-caption="Offline vector maps" hidden>
+      <img src="site/nearby.png" width="320" height="240" alt="The Nearby app: lines from the device to the nodes around it, with the distance and bearing of the nearest" data-caption="Nearby: who is where" hidden>
+      <img src="site/apps.png" width="320" height="240" alt="The Apps tab listing emergency messages, Nearby, Navigate, Town locator, Compass, Trip and Wardrive" data-caption="Apps for the field" hidden>
+    </div>
+    <figcaption id="rotate-caption">Home: twelve live tiles</figcaption>
+    <div class="dots" id="rotate-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
   </figure>
 </div>
 
@@ -266,6 +276,28 @@ esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x0 firmware-thi
 </footer>
 
 </div>
+<script>
+  // The picture at the top steps through five screens. It waits while the pointer is on it, and stands
+  // still for people who asked their system for less motion (the dots still switch).
+  (function () {
+    var box = document.getElementById('rotate'); if (!box) return;
+    var frames = box.querySelectorAll('.frames img'), dots = box.querySelectorAll('#rotate-dots i');
+    var caption = document.getElementById('rotate-caption'), at = 0, paused = false;
+    function show(n) {
+      at = (n + frames.length) % frames.length;
+      frames.forEach(function (img, i) { img.hidden = i !== at; });
+      dots.forEach(function (dot, i) { dot.classList.toggle('on', i === at); });
+      caption.textContent = frames[at].dataset.caption;
+    }
+    dots.forEach(function (dot, i) { dot.addEventListener('click', function () { show(i); }); });
+    box.addEventListener('mouseenter', function () { paused = true; });
+    box.addEventListener('mouseleave', function () { paused = false; });
+    show(0);
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      setInterval(function () { if (!paused && !document.hidden) show(at + 1); }, 4000);
+  })();
+</script>
+
 <div class="kofi-foot" style="text-align:center;padding:0 0 40px">
   <span id="kofi-image"><a href='https://ko-fi.com/X3U521F6CP' target='_blank' rel='noopener'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi5.png?v=6' border='0' alt='Support this project at ko-fi.com' /></a></span>
   <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
