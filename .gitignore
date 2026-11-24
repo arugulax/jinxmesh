@@ -1,0 +1,16 @@
+*.png
+backup/
+__pycache__/
+sim/prefs-before/
+# the flasher: only the tool is kept here; built images go to releases
+webflash/.venv*/
+webflash/logs/
+webflash/firmware/
+webflash/static/*.pmtiles
+webflash/static/m9-kb/
+# working notes that are not part of the project
+internal/
+# never: a radio's own configuration holds its private key
+cfg/
+*.info
+webflash/static/data/*.bin

@@ -1,0 +1,10 @@
+Logging:
+  LogLevel: info
+Display:
+  Panel: X11
+  Width: 320
+  Height: 240
+General:
+  MaxNodes: 200
+  ConfigDirectory: @WORK@/sim/config.d/
+  AvailableDirectory: @WORK@/sim/available.d/

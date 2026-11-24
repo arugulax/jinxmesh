@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webflash</title>
+<style>
+:root {
+  --ground: #0B0F14; --surface: #151B23; --raised: #1E2630; --border: #2B3542;
+  --text: #EEF2F6; --muted: #9FB0C3; --focus: #FFB02E; --blue: #6CB6FF; --bad: #FF8A80; --good: #7FD1AE;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+h1 { margin: 0; font-size: 20px; }
+h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.pill { padding: 1px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+.pill.on { color: var(--good); border-color: var(--good); }
+.pill.off { color: var(--bad); border-color: var(--bad); }
+.grow { flex: 1; }
+label.switch { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+button {
+  font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 12px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--muted); }
+textarea { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--text); background: #06090C; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; resize: vertical; }
+#scale { display: grid; grid-template-columns: auto repeat(12, 1fr); gap: 4px; width: 100%; align-items: center; }
+#scale .octave { color: var(--muted); font-size: 13px; padding-right: 8px; white-space: nowrap; }
+#scale .head { color: var(--muted); font-size: 12px; text-align: center; }
+#scale button { padding: 6px 0; min-width: 0; }
+#scale button.sharp { background: #06090C; color: var(--muted); }
+#scale button:active { background: var(--focus); color: #0B0F14; }
+select, input[type=text], input[type=number] { font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--blue); border-color: var(--blue); color: #0B0F14; font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+.row:first-of-type { border-top: 0; }
+.row .name { font-weight: 600; }
+.row .detail { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.state { font-size: 13px; color: var(--muted); }
+.state.open { color: var(--good); }
+.state.busy { color: var(--focus); }
+.empty { color: var(--muted); }
+.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.warn { color: var(--bad); }
+progress { width: 100%; height: 8px; margin-top: 8px; accent-color: var(--blue); }
+#terminal {
+  margin: 0; height: 46vh; min-height: 220px; overflow: auto; padding: 8px; border-radius: 6px;
+  background: #06090C; border: 1px solid var(--border);
+  font: 12.5px/1.4 ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+#terminal .tool { color: var(--blue); }
+#terminal .err { color: var(--bad); }
+.termhead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.termhead h2 { margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>webflash</h1>
+    <span id="link" class="pill off">not connected</span>
+    <span class="grow"></span>
+    <label class="switch"><input id="remote" type="checkbox" checked> Let the server control these devices</label>
+  </header>
+
+  <section id="unsupported" hidden>
+    <span class="warn">This browser has no Web Serial.</span>
+    Open this page in Chrome, Edge or another Chromium browser on a desktop, over HTTPS.
+  </section>
+
+  <section>
+    <h2>Devices on this computer</h2>
+    <div id="devices"></div>
+    <div class="row">
+      <button id="add" class="primary">Add a USB device</button>
+      <span class="detail">The browser lists every serial device plugged into this computer; pick one to share it.</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Firmware from the server</h2>
+    <div id="offers"></div>
+    <progress id="progress" max="100" value="0" hidden></progress>
+    <p class="note">Flashing uses the selected device. Keep this tab in front until it finishes. If the device does not
+      answer, hold its BOOT button while plugging it in, then add it again.</p>
+  </section>
+
+  <section>
+    <h2>Files for the device's SD card</h2>
+    <div class="row">
+      <label class="detail">From the server
+        <select id="serverfile" aria-label="A data file the server has"><option value="">nothing offered</option></select></label>
+      <span class="grow"></span>
+      <button id="sendserver" class="primary" disabled>Send to the device</button>
+    </div>
+    <div class="row">
+      <span class="detail">Or a file from this computer</span>
+      <input id="file" type="file" aria-label="File to send">
+      <select id="filekind" aria-label="What the file is">
+        <option value="roads">Road data for Navigate (roads.bin)</option>
+        <option value="towns">Town data (towns.bin)</option>
+        <option value="map">Map archive (.pmtiles)</option>
+        <option value="other">Other file</option>
+      </select>
+      <label class="detail">goes to <input id="filepath" type="text" size="30" spellcheck="false" aria-label="Path on the card"></label>
+      <span class="grow"></span>
+      <button id="sendfile" class="primary" disabled>Send to the device</button>
+    </div>
+    <progress id="fileprogress" max="100" value="0" hidden></progress>
+    <div class="row">
+      <button id="cardshow">Show what is on the card</button>
+      <button id="cardup">Up</button>
+      <button id="cardwardrive">Wardrive logs</button>
+      <span class="detail">Folder <code id="cardpath">/</code></span>
+      <span id="cardstate" class="detail"></span>
+    </div>
+    <div id="cardlist"></div>
+    <p id="filestate" class="note">Sends a file over the USB cable to the card of the selected device, and compares it afterwards.
+      Slow but sure: about 3.5 MB a minute. A transfer that broke off goes on where it stopped. Needs JinxMesh firmware
+      with the file transfer. "Save here" on a file of the card brings it to this computer; the Wardrive logs are one
+      CSV file per day.</p>
+  </section>
+
+  <section>
+    <h2>Logs over Bluetooth</h2>
+    <div class="row">
+      <button id="bleconnect">Connect by Bluetooth</button>
+      <button id="bleup" disabled>Up</button>
+      <span class="detail">Folder <code id="blepath">/apps/wardrive</code></span>
+      <span id="blestate" class="detail"></span>
+    </div>
+    <div id="blelist"></div>
+    <p class="note">Brings the wardrive and trip logs (the card's <code>/apps</code> folder, to read only) to this computer
+      without the cable. The device asks for its pairing code the first time. Only one Bluetooth connection at a time:
+      disconnect the phone app first. While this page is connected, "Send the log by Bluetooth" (hold OK in the Wardrive app of
+      the device) brings the log here without a click. Needs JinxMesh firmware 2.8.3 from 2026-11-21 on and a browser with Web Bluetooth
+      (Chrome, Edge). About 10 kB a second.</p>
+  </section>
+
+  <section>
+    <h2>Navigate: a destination or a route</h2>
+    <textarea id="gostops" rows="5" spellcheck="false" placeholder="44.2601, -72.5754, Montpelier&#10;44.1970, -72.5020, Barre"></textarea>
+    <div class="row">
+      <select id="gomode">
+        <option value="c">By road, driving</option>
+        <option value="f">On foot, roads and trails</option>
+      </select>
+      <input id="goname" type="text" maxlength="28" placeholder="Name of the route (to keep it)">
+      <button id="gostart" class="primary" disabled>Send and start</button>
+      <button id="gokeep" disabled>Send, keep for later</button>
+      <span id="gostate" class="detail">Connect by Bluetooth above first.</span>
+    </div>
+    <p class="note">One place a line: latitude, longitude in degrees with a point, then a name. One line is a destination; several
+      are the stops of a route in their order (at most 1024; a long route takes about a minute to send), which the device follows one after the other and keeps on its card
+      in <code>/apps/routes</code>. The route itself is found on the device, from where it is, over the roads and trails of
+      <code>/geo/roads.bin</code>. The phone app or the Meshtastic web client can also send a waypoint: on the device it is under
+      Navigate, A waypoint.</p>
+  </section>
+
+  <section>
+    <h2>Tunes for the buzzer</h2>
+    <div class="row">
+      <label class="detail">Name <input id="tunename" type="text" size="12" maxlength="20" value="mytune" spellcheck="false"></label>
+      <label class="detail">Tempo <input id="tunetempo" type="number" min="25" max="900" value="160" style="width:5em"></label>
+      <label class="detail">Note length
+        <select id="tunelength">
+          <option value="1">whole</option><option value="2">half</option><option value="4">quarter</option>
+          <option value="8" selected>eighth</option><option value="16">sixteenth</option><option value="32">thirty-second</option>
+        </select></label>
+      <label class="switch"><input id="tunedotted" type="checkbox"> dotted (half as long again)</label>
+      <label class="switch"><input id="tunelive" type="checkbox"> sound each note on the device too</label>
+      <span class="grow"></span>
+      <button id="tunepause">Add a pause</button>
+      <button id="tuneundo">Undo</button>
+      <button id="tuneclear">Clear</button>
+    </div>
+    <div class="row">
+      <div id="scale" role="group" aria-label="Notes of the scale, octaves 4 to 7"></div>
+    </div>
+    <div class="row">
+      <textarea id="tunetext" rows="3" spellcheck="false" aria-label="The tune as RTTTL text"></textarea>
+    </div>
+    <div class="row">
+      <label class="detail">Start from one the device comes with
+        <select id="tunebuiltin"><option value="">choose</option></select></label>
+      <span class="grow"></span>
+      <button id="tunerefresh">Show my tunes on the device</button>
+    </div>
+    <div id="tunelist"></div>
+    <div class="row">
+      <button id="tuneplay">Play here</button>
+      <button id="tunestop">Stop</button>
+      <button id="tunedevice">Play on the device</button>
+      <button id="tunesave" class="primary">Save to the device</button>
+      <span id="tunestate" class="detail"></span>
+    </div>
+    <p class="note">Press a note to hear and add it: each row is one octave of the scale, low at the top (octaves 4 to 7 are what a tune can hold), or edit the text (RTTTL) directly. The buzzer plays one note at a time.
+      Saved tunes go to <code>/tones</code> on the card and turn up in Settings, Sounds, in every list of tones.
+      A tune for "Notification tone" may have 230 characters at most, the others 399.</p>
+  </section>
+
+  <section>
+    <div class="termhead">
+      <h2>Output</h2>
+      <span class="grow"></span>
+      <button id="clear">Clear</button>
+    </div>
+    <pre id="terminal" aria-live="off"></pre>
+  </section>
+</main>
+<script src="spark-md5.min.js"></script>
+<script type="module" src="app.js?v=2026-11-20-1600"></script>
+</body>
+</html>

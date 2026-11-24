@@ -1,0 +1,4 @@
+[
+  {"name": "Road data for Navigate: Vermont, New Hampshire, northern New York", "file": "roads.bin", "path": "/geo/roads.bin", "bytes": 77986900},
+  {"name": "Town data for the town locator", "file": "towns.bin", "path": "/geo/towns.bin", "bytes": 14625546}
+]

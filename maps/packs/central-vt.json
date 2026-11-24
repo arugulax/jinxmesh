@@ -1,0 +1,13 @@
+{
+  "style": "topo",
+  "name": "USGS Topo, Burlington to St. Johnsbury",
+  "attribution": "USGS The National Map",
+  "west": -73.40,
+  "south": 43.98,
+  "east": -71.85,
+  "north": 44.82,
+  "zoom_min": 6,
+  "zoom_max": 15,
+  "pad_below": 12,
+  "center_zoom": 11
+}
