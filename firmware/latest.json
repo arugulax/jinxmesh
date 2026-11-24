@@ -1,0 +1,20 @@
+{
+ "board": "Elecrow ThinkNode M9",
+ "chip": "ESP32-S3",
+ "version": "2.8.3.9485eff",
+ "build": "2026-11-24-1246",
+ "update": {
+  "file": "firmware-thinknode_m9-tft-kb-2.8.3.9485eff.bin",
+  "bytes": 3980272,
+  "sha256": "9649aee7a8a5ef6836cf2cad134aa76ff015ea16042ebf7ab487f40368742b67",
+  "md5": "65c29c53c7fb767c46f4e3d2311104fb",
+  "offset": "0x10000"
+ },
+ "full": {
+  "file": "firmware-thinknode_m9-tft-kb-2.8.3.9485eff.factory.bin",
+  "bytes": 4045808,
+  "sha256": "8e66a42d8d7239342ade1260abaeb1fef9303a13ab5b01d2608cc20aa4fd6bd1",
+  "md5": "dfc4d7101f15c400e8deb28eae3371be",
+  "offset": "0x0"
+ }
+}

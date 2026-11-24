@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash JinxMesh onto a ThinkNode M9 from your browser</title>
+<meta name="description" content="Install or update JinxMesh on an Elecrow ThinkNode M9 straight from the browser, and load offline maps for your area onto its SD card. Nothing to install.">
+<link rel="canonical" href="https://jinxmesh.com/flash/">
+<meta name="theme-color" content="#0b2a6b">
+<link rel="icon" type="image/png" href="../site/favicon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JinxMesh">
+<meta property="og:title" content="Flash JinxMesh onto a ThinkNode M9 from your browser">
+<meta property="og:description" content="Install or update the firmware and load offline maps, with nothing to install.">
+<meta property="og:url" content="https://jinxmesh.com/flash/">
+<meta property="og:image" content="https://jinxmesh.com/site/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #f6f9fd; --card: #ffffff; --ink: #0d1b33; --muted: #4a5a75; --line: #d7e1ef;
+    --blue: #1b76d6; --sky: #2aa7f5; --ok: #157347; --err: #b42318; --pick: #1b76d6; --pickbg: rgba(27, 118, 214, .22);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0a1220; --card: #111c30; --ink: #e8eef8; --muted: #a3b2cb; --line: #22324d;
+            --blue: #5fb0ff; --sky: #7cc6ff; --ok: #5fd39a; --err: #ff8a7a; --pick: #7cc6ff; --pickbg: rgba(124, 198, 255, .25); }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--blue); }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 22px 90px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  header.top .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--ink); text-decoration: none; }
+  header.top img { width: 34px; height: 34px; }
+  nav a { margin-left: 20px; text-decoration: none; color: var(--muted); font-size: 15px; }
+  h1 { font-size: clamp(28px, 4.4vw, 40px); line-height: 1.15; margin: 18px 0 10px; letter-spacing: -0.02em; }
+  h2 { font-size: 24px; margin: 0 0 6px; }
+  h3 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 8px; }
+  p.lead { color: var(--muted); font-size: 18px; margin: 0 0 26px; }
+  section.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin: 0 0 22px; }
+  .step { color: var(--blue); font-weight: 700; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; }
+  .muted, .hint { color: var(--muted); font-size: 15px; }
+  button { font: inherit; font-weight: 600; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line);
+           background: var(--card); color: var(--ink); cursor: pointer; margin: 6px 8px 6px 0; }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  button.danger { border-color: var(--err); color: var(--err); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .bar { margin: 14px 0 4px; }
+  .bar progress { width: 100%; height: 12px; accent-color: var(--blue); }
+  .bar span { display: block; font-size: 14px; color: var(--muted); min-height: 1.4em; }
+  .notice { border-left: 4px solid var(--sky); background: var(--card); border-radius: 8px; padding: 12px 16px; margin: 0 0 18px;
+            border-top: 1px solid var(--line); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 15.5px; }
+  .notice.bad { border-left-color: var(--err); }
+  input[type=search] { font: inherit; width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+                       background: var(--bg); color: var(--ink); margin: 10px 0 4px; }
+  #maps { max-height: 430px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px 12px; margin-top: 10px; }
+  details.map { border-bottom: 1px solid var(--line); }
+  details.map summary { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; list-style: none; }
+  details.map summary::-webkit-details-marker { display: none; }
+  details.map summary::after { content: "pieces"; font-size: 13px; color: var(--blue); margin-left: 10px; }
+  details.map[open] summary::after { content: "close"; }
+  details.map input { width: 18px; height: 18px; accent-color: var(--blue); }
+  details.map .name { font-weight: 600; }
+  details.map .info { margin-left: auto; color: var(--muted); font-size: 14.5px; white-space: nowrap; }
+  svg.pieces { display: block; width: min(100%, 440px); margin: 4px 0 16px; }
+  svg.pieces rect { fill: transparent; stroke: var(--muted); stroke-width: 1; cursor: pointer; }
+  svg.pieces g.on rect { fill: var(--pickbg); stroke: var(--pick); stroke-width: 2; }
+  svg.pieces g:focus-visible rect { stroke: var(--ink); stroke-width: 3; }
+  svg.pieces g { outline: none; }
+  svg.pieces text { font-size: 13px; fill: var(--muted); text-anchor: middle; pointer-events: none; }
+  svg.pieces g.on text { fill: var(--ink); font-weight: 700; }
+  #total { font-weight: 600; margin: 14px 0 4px; }
+  #links { font-size: 15px; margin-top: 12px; }
+  #log { font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0b1322; color: #d6e2f5;
+         border-radius: 12px; padding: 14px 16px; min-height: 90px; max-height: 260px; overflow-y: auto; }
+  #log .dim { color: #8497b8; } #log .ok { color: #7fe0ae; } #log .err { color: #ffa093; }
+  ol.how { padding-left: 20px; margin: 8px 0 0; color: var(--muted); font-size: 15.5px; }
+  footer { color: var(--muted); font-size: 14px; padding-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <a class="brand" href="../"><img src="../site/icon.png" alt="" width="34" height="34">JinxMesh</a>
+  <nav aria-label="Site">
+    <a href="../">Home</a>
+    <a href="https://github.com/arugulax/jinxmesh/blob/main/docs/USER-GUIDE.md">User guide</a>
+    <a href="https://github.com/arugulax/jinxmesh">GitHub</a>
+  </nav>
+</header>
+
+<main>
+<h1>Flash your M9 from the browser</h1>
+<p class="lead">Install or update JinxMesh on an Elecrow ThinkNode M9 and load maps for your
+area. Nothing to install, and nothing about your device is sent anywhere.</p>
+
+<div id="no-serial" class="notice bad" hidden>This browser cannot talk to USB serial devices.
+Open this page in Chrome or Edge on a computer, or flash with esptool as the
+<a href="https://github.com/arugulax/jinxmesh/blob/main/docs/INSTALL.md">install guide</a> describes.</div>
+<div id="no-https" class="notice bad" hidden>This page must be opened over https for the browser to allow USB access.</div>
+
+<section class="card" aria-labelledby="h-flash">
+  <div class="step">Step 1</div>
+  <h2 id="h-flash">Firmware</h2>
+  <p class="muted" id="version">Loading the firmware list.</p>
+  <ol class="how">
+    <li>Plug the M9 into this computer with a USB-C data cable.</li>
+    <li>Press <strong>Connect the M9</strong> and pick its port (it shows as "USB Serial" or "CH340").</li>
+    <li>Choose an update or a first install.</li>
+  </ol>
+  <p>
+    <button id="connect" class="primary" disabled>Connect the M9</button>
+    <span id="port" class="muted"></span>
+  </p>
+  <p>
+    <button id="flash-update" disabled>Update, keep my settings</button>
+    <button id="flash-full" class="danger" disabled>First install, erase everything</button>
+    <button id="reset" disabled>Restart the M9</button>
+  </p>
+  <div id="flash-progress" class="bar" hidden><progress max="100" value="0"></progress><span></span></div>
+  <p class="hint">A first install wipes settings, channels, keys and chats, and is what a device coming
+  from stock Meshtastic needs. An update keeps them. Only flash a ThinkNode M9: the page checks the chip,
+  but not the board.</p>
+</section>
+
+<section class="card" aria-labelledby="h-maps">
+  <div class="step">Step 2, optional</div>
+  <h2 id="h-maps">Maps for your area</h2>
+  <p class="muted">Offline vector maps of the United States and Canada. Tick whole states, or open
+  one and click only the pieces you need.</p>
+  <input type="search" id="filter" placeholder="Find a state or province" aria-label="Find a state or province">
+  <div id="maps">Loading the list of maps.</div>
+  <p id="total">Nothing chosen yet.</p>
+
+  <div id="no-folders" class="notice" hidden>This browser cannot write to a folder you pick. Use
+  Chrome or Edge on a computer for that, or use the download links.</div>
+  <p>
+    <button id="to-card" class="primary" disabled>Write to an SD card in this computer</button>
+    <button id="to-cable" disabled>Send over the USB cable (slow)</button>
+    <button id="as-links" disabled>Show download links</button>
+  </p>
+  <div id="map-progress" class="bar" hidden><progress max="100" value="0"></progress><span></span></div>
+  <div id="links" hidden></div>
+  <p class="hint"><strong>SD card:</strong> put the M9's card in a card reader, press the button and pick the
+  card itself. The maps go to <code>/maps/state/</code> and <code>/maps/province/</code>; files already there are
+  skipped. <strong>Cable:</strong> the card stays in the M9, which must be running JinxMesh and connected in
+  step 1. It moves about 3.5 MB a minute, so it suits a piece or two, not a whole state.</p>
+</section>
+
+<section class="card" aria-labelledby="h-log">
+  <h2 id="h-log">What happened</h2>
+  <div id="log" role="log" aria-live="polite"></div>
+</section>
+
+<footer>
+  <p>Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ODbL;
+  elevation from the Terrain Tiles open dataset. Flashing uses
+  <a href="https://github.com/espressif/esptool-js">esptool-js</a> (Apache-2.0).
+  JinxMesh is not affiliated with Meshtastic LLC or Elecrow.</p>
+</footer>
+</main>
+</div>
+
+<script src="spark-md5.min.js"></script>
+<script type="module" src="flash.js"></script>
+</body>
+</html>

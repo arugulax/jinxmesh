@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JinxMesh: a keyboard interface for Meshtastic on the ThinkNode M9</title>
+<meta name="description" content="JinxMesh is free firmware for the Elecrow ThinkNode M9 that replaces Meshtastic's touch interface with one built for the M9's keyboard and d-pad, and adds offline maps, navigation and field apps.">
+<meta name="keywords" content="JinxMesh, Meshtastic, ThinkNode M9, Elecrow ThinkNode M9, Meshtastic firmware, keyboard interface, LoRa mesh, offline maps, ESP32-S3, device-ui">
+<meta name="author" content="JinxMesh">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://jinxmesh.com/">
+<meta name="theme-color" content="#0b2a6b">
+<link rel="icon" type="image/png" href="site/favicon.png">
+<link rel="apple-touch-icon" href="site/icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JinxMesh">
+<meta property="og:title" content="JinxMesh: Meshtastic for the ThinkNode M9, driven by its keys">
+<meta property="og:description" content="Free firmware that replaces the touch interface on the Elecrow ThinkNode M9 with one made for its keyboard. Offline maps, navigation, field apps.">
+<meta property="og:url" content="https://jinxmesh.com/">
+<meta property="og:image" content="https://jinxmesh.com/site/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The JinxMesh logo next to the Home screen of a ThinkNode M9 running JinxMesh">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="JinxMesh: Meshtastic for the ThinkNode M9, driven by its keys">
+<meta name="twitter:description" content="Free firmware that replaces the touch interface on the Elecrow ThinkNode M9 with one made for its keyboard.">
+<meta name="twitter:image" content="https://jinxmesh.com/site/og.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "JinxMesh",
+  "description": "A keyboard-first interface for Meshtastic on the Elecrow ThinkNode M9, with offline vector maps, navigation and field apps.",
+  "url": "https://jinxmesh.com/",
+  "image": "https://jinxmesh.com/site/og.png",
+  "applicationCategory": "CommunicationApplication",
+  "operatingSystem": "Elecrow ThinkNode M9 (ESP32-S3)",
+  "softwareVersion": "2026-11-24",
+  "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "downloadUrl": "https://github.com/arugulax/jinxmesh/releases/latest",
+  "installUrl": "https://jinxmesh.com/flash/",
+  "codeRepository": "https://github.com/arugulax/jinxmesh"
+}
+</script>
+
+<style>
+  :root {
+    --bg: #f6f9fd; --card: #ffffff; --ink: #0d1b33; --muted: #4a5a75; --line: #d7e1ef;
+    --navy: #0b2a6b; --blue: #1b76d6; --sky: #2aa7f5; --code: #0f1b2e; --codeink: #e6eefb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0a1220; --card: #111c30; --ink: #e8eef8; --muted: #a3b2cb; --line: #22324d;
+            --navy: #9cc7ff; --blue: #5fb0ff; --sky: #7cc6ff; --code: #060c17; --codeink: #dbe7fa; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--blue); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 22px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  header.top .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--ink); text-decoration: none; }
+  header.top img { width: 34px; height: 34px; }
+  nav a { margin-left: 20px; text-decoration: none; color: var(--muted); font-size: 15px; }
+  nav a:hover { color: var(--blue); }
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 44px; align-items: center; padding: 34px 0 54px; }
+  .hero h1 { font-size: clamp(30px, 4.6vw, 46px); line-height: 1.12; margin: 0 0 16px; letter-spacing: -0.02em; }
+  .hero p.lead { font-size: 19px; color: var(--muted); margin: 0 0 26px; }
+  .btn { display: inline-block; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: 600; margin: 0 10px 10px 0; }
+  .btn.primary { background: var(--blue); color: #fff; }
+  .btn.ghost { border: 1px solid var(--line); color: var(--ink); background: var(--card); }
+  .note { font-size: 14px; color: var(--muted); margin-top: 8px; }
+  /* The screen is 320 x 240. Pictures of it are shown at exactly one or two times that size, never in between:
+     any other size smears or breaks the letters. */
+  .device { background: linear-gradient(160deg, #1b2740, #0a101c); border-radius: 22px; padding: 16px 16px 12px;
+            box-shadow: 0 22px 60px rgba(11, 42, 107, .28), inset 0 0 0 1px rgba(255, 255, 255, .07); width: max-content; }
+  .device img { display: block; width: 320px; height: 240px; image-rendering: pixelated; image-rendering: crisp-edges;
+                border-radius: 4px; box-shadow: 0 0 0 2px #05080f; }
+  .device.big img { width: 640px; height: 480px; }
+  .device figcaption { color: #9fb0cc; font-size: 13.5px; text-align: center; padding: 10px 0 0; }
+  .device .dots { display: flex; gap: 5px; justify-content: center; padding-top: 10px; }
+  .device .dots i { width: 5px; height: 5px; border-radius: 50%; background: #33435f; }
+  section { padding: 46px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 28px; margin: 0 0 14px; letter-spacing: -0.01em; }
+  h3 { font-size: 18px; margin: 0 0 6px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15.5px; }
+  .shots { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 34px; }
+  .shots figure { margin: 0; padding: 12px 12px 10px; border-radius: 18px; }
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 22px 0 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 0 0 26px 54px; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%;
+                          background: var(--blue); color: #fff; font-weight: 700; display: grid; place-items: center; }
+  pre { background: var(--code); color: var(--codeink); padding: 14px 16px; border-radius: 10px; overflow-x: auto; font-size: 14px; line-height: 1.5; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+  p code, li code { background: rgba(27, 118, 214, .12); padding: 1px 5px; border-radius: 5px; }
+  .warn { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--sky); border-radius: 10px; padding: 14px 16px; font-size: 15.5px; color: var(--muted); }
+  footer { border-top: 1px solid var(--line); padding: 30px 0 90px; color: var(--muted); font-size: 14px; }
+  @media (max-width: 1140px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero .device { margin: 0 auto; }
+  }
+  @media (max-width: 780px) {
+    .two, .grid { grid-template-columns: 1fr; }
+    nav a { margin-left: 12px; }
+  }
+  @media (max-width: 720px) {
+    .device.big img { width: 320px; height: 240px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <a class="brand" href="#top"><img src="site/icon.png" alt="" width="34" height="34">JinxMesh</a>
+  <nav aria-label="Sections">
+    <a href="#why">Why</a>
+    <a href="#features">Features</a>
+    <a href="#install">Install</a>
+    <a href="flash/">Flasher</a>
+    <a href="https://github.com/arugulax/jinxmesh">GitHub</a>
+  </nav>
+</header>
+
+<main id="top">
+
+<div class="hero">
+  <div>
+    <h1>Meshtastic for the ThinkNode M9, driven by its keys</h1>
+    <p class="lead">JinxMesh is free firmware for the Elecrow ThinkNode M9. It replaces the
+    touch interface with one made for the M9's keyboard and d-pad, and adds offline maps,
+    navigation and a set of apps for the field.</p>
+    <a class="btn primary" href="flash/">Flash it from your browser</a>
+    <a class="btn ghost" href="https://github.com/arugulax/jinxmesh/releases/latest">Download the files</a>
+    <p class="note">Open source, GPL-3.0. Built on Meshtastic firmware 2.8.3. Unofficial.</p>
+  </div>
+  <figure class="device big" style="margin:0">
+    <img src="site/home.png" width="640" height="480" alt="The JinxMesh Home screen: twelve tiles showing time, unread messages, radio, GPS, battery, nodes, nearest node, town, emergency messages, compass, trip and timer">
+    <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+  </figure>
+</div>
+
+<section id="why">
+  <div class="two">
+    <div>
+      <h2>Why it exists</h2>
+      <p>The ThinkNode M9 is a lovely piece of hardware: a real keyboard, a d-pad, a bright
+      screen, GPS, an SD card slot. What it does not have is a touch screen.</p>
+      <p>The interface it ships with was designed for touch and then put on a device without
+      it. Getting around with the d-pad was a chore, and a good part of what the radio can do
+      could not be reached from the device at all. You ended up pulling out a phone to do
+      things the M9 has every key for.</p>
+    </div>
+    <div>
+      <h2>What JinxMesh does about it</h2>
+      <p>JinxMesh is an interface written for this device from the start. Every screen is
+      laid out for the keys you actually have: the arrows move, OK opens, holding OK brings up
+      a menu for whatever is in focus, Back goes back, and typing a letter searches.</p>
+      <p>With the keyboard doing the work, there was room to add what a handheld radio should
+      be able to do on its own: read a map, find the way, and set itself up without a phone.</p>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <h2>What you get</h2>
+  <div class="grid">
+    <div class="card"><h3>Chats that keep up</h3><p>Channels and direct messages with unread counts, drafts, quote replies, reactions, quick replies, search and pinned chats. Each message of yours says how far it got.</p></div>
+    <div class="card"><h3>Offline maps</h3><p>Vector maps drawn on the device from files on the SD card: contours, water, roads, trails and names. Ready-made maps cover the United States and Canada.</p></div>
+    <div class="card"><h3>Navigation</h3><p>A route by road or on foot to a node, a waypoint or coordinates, with the next turn, a turn list and the route on the map. Routes of many stops can be saved.</p></div>
+    <div class="card"><h3>Apps for the field</h3><p>Nearby nodes with distance and direction, RF monitor, emergency messages in plain words, town locator, trip odometer, signal log, compass, stopwatch and timer.</p></div>
+    <div class="card"><h3>Settings on the device</h3><p>Region, modem preset, channels with QR sharing, names, display, position sharing, Bluetooth, Wi-Fi and sounds. No phone needed to set up.</p></div>
+    <div class="card"><h3>Still works with your phone</h3><p>Bluetooth and the screen run together. A message sent from the Meshtastic app shows on the M9, and the other way around.</p></div>
+  </div>
+
+  <div class="shots">
+    <figure class="device"><img src="site/chat.png" width="320" height="240" loading="lazy" alt="A channel chat with a quoted reply and a message being typed"><figcaption>A chat, with a quoted reply</figcaption></figure>
+    <figure class="device"><img src="site/map.png" width="320" height="240" loading="lazy" alt="A vector map with contour lines, roads, trails and two nodes marked"><figcaption>An offline vector map with nodes</figcaption></figure>
+    <figure class="device"><img src="site/nearby.png" width="320" height="240" loading="lazy" alt="The Nearby app: lines from the device to the nodes around it, with the distance and bearing of the nearest"><figcaption>Nearby: who is where</figcaption></figure>
+  </div>
+</section>
+
+<section id="install">
+  <h2>How to install</h2>
+  <p class="warn" style="margin-bottom:22px"><strong>The easy way:</strong> open the
+  <a href="flash/">web flasher</a> in Chrome or Edge on a computer, plug the M9 in, and press a
+  button. It installs or updates the firmware and can load maps for your area onto the SD card.</p>
+  <p>Prefer the command line? JinxMesh is flashed over the M9's USB port like any ESP32
+  firmware, with <a href="https://docs.espressif.com/projects/esptool/">esptool</a> and a
+  USB-C data cable.</p>
+
+  <ol class="steps">
+    <li>
+      <h3>Download</h3>
+      <p>Get the two firmware files from the
+      <a href="https://github.com/arugulax/jinxmesh/releases/latest">latest release</a>. The one
+      ending in <code>.factory.bin</code> is for a first install. The other <code>.bin</code>
+      is for later updates.</p>
+    </li>
+    <li>
+      <h3>Flash</h3>
+      <p>A first install erases the device, so export any configuration you want to keep first.</p>
+<pre><code>pip install esptool
+esptool.py --chip esp32s3 --port PORT --baud 230400 erase_flash
+esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x0 firmware-thinknode_m9-tft-kb-VERSION.factory.bin</code></pre>
+      <p>No Python? Open <a href="https://espressif.github.io/esptool-js/">esptool-js</a> in
+      Chrome or Edge, connect, erase, and program the factory file at address <code>0x0</code>.</p>
+    </li>
+    <li>
+      <h3>Set your region</h3>
+      <p>Restart the M9, then go to <strong>Settings, Radio, Region</strong>. Until a region
+      is set the radio and the GPS stay off.</p>
+    </li>
+    <li>
+      <h3>Add maps (optional)</h3>
+      <p>Pick your states or provinces in the <a href="flash/">web flasher</a> and it writes them to
+      the SD card. Or copy the map pieces yourself to <code>/maps/state/</code> or
+      <code>/maps/province/</code>; the
+      <a href="https://github.com/arugulax/jinxmesh#maps">README</a> lists where to get them.</p>
+    </li>
+  </ol>
+
+  <p><strong>Updating later</strong> keeps your settings, channels and chats:</p>
+<pre><code>esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x10000 firmware-thinknode_m9-tft-kb-VERSION.bin</code></pre>
+
+  <p class="warn">If esptool cannot connect, unplug the cable, plug it back in and flash right
+  away, and use a port on the computer itself instead of a hub. The
+  <a href="https://github.com/arugulax/jinxmesh/blob/main/docs/INSTALL.md">install guide</a>
+  has the details, and the way back to stock Meshtastic.</p>
+</section>
+
+<section id="more">
+  <div class="two">
+    <div>
+      <h2>Read more</h2>
+      <p><a href="https://github.com/arugulax/jinxmesh/blob/main/docs/USER-GUIDE.md">User guide</a>: every key, screen, app and setting.<br>
+      <a href="https://github.com/arugulax/jinxmesh/blob/main/docs/MAPS.md">Maps</a>: how they are made, and making your own.<br>
+      <a href="https://github.com/arugulax/jinxmesh/blob/main/docs/BUILDING.md">Building</a>: compile it yourself and run the simulator.<br>
+      <a href="https://github.com/arugulax/jinxmesh/blob/main/CHANGELOG.md">Changelog</a>: what changed in each release.</p>
+    </div>
+    <div>
+      <h2>Fair warning</h2>
+      <p>It is pretty stable, but use it at your own risk. JinxMesh is a hobby project for
+      one board, the ThinkNode M9. Some features have only been tried in the simulator so
+      far. Found a problem? <a href="https://github.com/arugulax/jinxmesh/issues">Open an issue</a>.</p>
+      <p>If JinxMesh is useful to you, you can
+      <a href="https://ko-fi.com/incognati">support the work on Ko-fi</a>.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>JinxMesh is free software under the GNU General Public License, version 3. It is built on
+  <a href="https://github.com/meshtastic/firmware">Meshtastic firmware</a> and
+  <a href="https://github.com/meshtastic/device-ui">device-ui</a>. Map data
+  &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors.</p>
+  <p>JinxMesh is an independent project. It is not affiliated with or endorsed by Meshtastic LLC
+  or Elecrow. Meshtastic&reg; is a registered trademark of Meshtastic LLC.</p>
+</footer>
+
+</div>
+
+<script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
+<script>
+  kofiWidgetOverlay.draw('incognati', {
+    'type': 'floating-chat',
+    'floating-chat.donateButton.text': 'Support me',
+    'floating-chat.donateButton.background-color': '#00b9fe',
+    'floating-chat.donateButton.text-color': '#fff'
+  });
+</script>
+</body>
+</html>
