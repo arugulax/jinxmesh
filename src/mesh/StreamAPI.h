@@ -99,6 +99,12 @@ class StreamAPI : public PhoneAPI
     void emitLogRecord(meshtastic_LogRecord_Level level, const char *src, const char *format, va_list arg);
 
     /// Return whether the transport can accept a frame of the requested size.
+    /// A received byte that belongs to no frame. True: stop reading, the stream now belongs to someone else
+    virtual bool strayByte(uint8_t c)
+    {
+        (void)c;
+        return false;
+    }
     virtual bool canWriteFrame(size_t frameLen) { return true; }
     /// Let transports recover from or close after an incomplete write.
     virtual void onFrameWriteFailed(size_t frameLen, size_t writtenLen) {}

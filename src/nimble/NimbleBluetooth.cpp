@@ -11,6 +11,7 @@
 #include "mesh/Throttle.h"
 #include "mesh/mesh-pb-constants.h"
 #include "sleep.h"
+#include "jinx/JinxBle.h"
 #include <BLE2904.h>
 #include <BLEAdvertising.h>
 #include <BLEDevice.h>
@@ -20,6 +21,9 @@
 #include <mutex>
 
 #include "PowerStatus.h"
+#ifdef USE_PACKET_API
+#include "api/PacketAPI.h"
+#endif
 
 #include "host/ble_gap.h"
 #include "host/ble_hs.h"
@@ -123,6 +127,10 @@ static void clearPairingDisplay()
     if (screen) {
         screen->endAlert();
     }
+#endif
+#ifdef USE_PACKET_API
+    if (packetAPI)
+        packetAPI->hidePasskey();
 #endif
 }
 
@@ -654,7 +662,14 @@ class NimbleBluetoothSecurityCallback : public BLESecurityCallbacks
 {
     void onPassKeyNotify(uint32_t passkey) override
     {
+#ifdef USE_PACKET_API
+        // the passkey is for whoever can see the screen: it does not go into the log
+        LOG_INFO("*** Enter the passkey shown on the screen on the peer side ***");
+        if (packetAPI)
+            packetAPI->showPasskey(passkey);
+#else
         LOG_INFO("*** Enter passkey %06u on the peer side ***", passkey);
+#endif
         powerFSM.trigger(EVENT_BLUETOOTH_PAIR);
         meshtastic::BluetoothStatus newStatus(std::to_string(passkey));
         bluetoothStatus->updateStatus(&newStatus);
@@ -861,6 +876,9 @@ void NimbleBluetooth::deinit()
     bleServer = nullptr;             // deleted by deinit(); clear the dangling copy
     BatteryCharacteristic = nullptr; // freed by deinit; clear so updateBatteryLevel() won't touch it
     fromNumCharacteristic = nullptr; // freed by deinit; a late onNowHasData() must not notify freed memory
+#ifdef JINX_BLE_FILES
+    jinxBleGone();
+#endif
     logRadioCharacteristic = nullptr;
     lastBatteryLevel = -1;
 
@@ -941,6 +959,8 @@ void NimbleBluetooth::setup()
         if (config.bluetooth.mode == meshtastic_Config_BluetoothConfig_PairingMode_RANDOM_PIN) {
             LOG_INFO("Use random passkey");
             security.setPassKey(false); // generate a random passkey
+            // and a new one for every pairing: one that was read off the screen is of no use later
+            BLESecurity::regenPassKeyOnConnect(true);
         } else {
             LOG_INFO("Use fixed passkey");
             security.setPassKey(true, config.bluetooth.fixed_pin);
@@ -1042,6 +1062,11 @@ void NimbleBluetooth::setupService()
     BatteryCharacteristic->setValue(&initialLevel, 1);
     lastBatteryLevel = initialLevel;
     batteryService->start();
+
+#ifdef JINX_BLE_FILES
+    // after the others, so that the handles a paired phone remembers stay what they were
+    jinxBleSetup(bleServer, config.bluetooth.mode != meshtastic_Config_BluetoothConfig_PairingMode_NO_PIN);
+#endif
 }
 
 /// Given a level between 0-100, update the BLE attribute

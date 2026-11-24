@@ -146,6 +146,16 @@ class GPS : private concurrency::OSThread
 
     bool isPowerSaving() const { return config.position.gps_mode != meshtastic_Config_PositionConfig_GpsMode_ENABLED; }
 
+    /// True while the receiver is powered for a search that started less than withinMs ago
+    bool isSearching(uint32_t withinMs) const;
+
+    /// Keeps the receiver on and publishing every fix for this long, whatever the update interval says:
+    /// somebody is following the position live (navigation). Asked again before it runs out, it goes on.
+    static void keepTracking(uint32_t ms);
+    static bool tracking();
+    /// The last fix as it came from the receiver, and how old it is; false before the first one
+    static bool lastFix(int32_t &latitude, int32_t &longitude, uint32_t &ageMs);
+
     // Empty the input buffer as quickly as possible
     void clearBuffer();
 

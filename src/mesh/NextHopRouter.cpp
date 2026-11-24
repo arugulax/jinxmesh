@@ -471,13 +471,15 @@ int32_t NextHopRouter::doRetransmissions()
         // can't stall retransmission.
         if (Throttle::deadlinePassedAt(now, p.nextTxMsec)) {
             if (p.numRetransmissions == 0) {
+                // the nak below is handled at once and erases this record, so the key is copied first
+                const GlobalPacketId key = it->first;
                 if (isFromUs(p.packet)) {
                     LOG_DEBUG("Reliable send failed, return nak fr=0x%08x,to=0x%08x,id=0x%08x", p.packet->from, p.packet->to,
                               p.packet->id);
                     sendAckNak(meshtastic_Routing_Error_MAX_RETRANSMIT, getFrom(p.packet), p.packet->id, p.packet->channel);
                 }
                 // Note: we don't stop retransmission here, instead the Nak packet gets processed in sniffReceived
-                stopRetransmission(it->first);
+                stopRetransmission(key);
                 stillValid = false; // just deleted it
             } else {
                 LOG_DEBUG("Send retransmission fr=0x%08x,to=0x%08x,id=0x%08x, tries left=%d", p.packet->from, p.packet->to,

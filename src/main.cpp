@@ -472,8 +472,15 @@ void setup()
 
 #if defined(ARCH_ESP32) && defined(BOARD_HAS_PSRAM)
 #ifndef SENSECAP_INDICATOR
+#ifdef USE_KEYBOARD_VIEW
+    // The keyboard view keeps its nodes, chats and lists in many small objects. Below upstream's limit of
+    // 2048 bytes they all came from the 250 kB of internal RAM, which left 12 kB of it with Bluetooth on
+    // and no room for a task's stack. Internal RAM is for what cannot live elsewhere: stacks, the radios.
+    heap_caps_malloc_extmem_enable(64);
+#else
     // use PSRAM for malloc calls > 2048 bytes
     heap_caps_malloc_extmem_enable(2048);
+#endif
 #endif
 #endif
 

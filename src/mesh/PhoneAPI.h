@@ -289,6 +289,12 @@ class PhoneAPI
     // any realistic scenario.
 #endif
 
+    // Where this client's packets come from. The screen (PacketAPI) has queues of its own.
+    virtual meshtastic_MeshPacket *takeMeshPacket();
+    virtual meshtastic_QueueStatus *takeQueueStatus();
+    virtual meshtastic_ClientNotification *takeClientNotification();
+    virtual meshtastic_MqttClientProxyMessage *takeMqttClientProxyMessage();
+
   private:
     void releasePhonePacket();
 

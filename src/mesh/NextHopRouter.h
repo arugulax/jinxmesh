@@ -121,6 +121,9 @@ class NextHopRouter : public FloodingRouter
 
     constexpr static uint8_t OPAQUE_SEEN_MAX = 32; // opaque-relay dedup slots (see relayOpaquePacket); ~8B/slot -> ~256B
 
+  public:
+    bool hasPendingRetransmissions() const override { return !pending.empty(); }
+
   protected:
     /**
      * Pending retransmissions

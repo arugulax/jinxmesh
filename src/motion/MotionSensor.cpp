@@ -46,6 +46,18 @@ struct CompassAccelSample {
 concurrency::Lock latestCompassAccelLock;
 CompassAccelSample latestCompassAccelSample;
 
+namespace
+{
+constexpr uint32_t COMPASS_WANTED_MS = 5000;
+volatile float latestHeading = 0.0f;
+volatile uint32_t latestHeadingAtMs = 0;
+volatile bool latestHeadingValid = false;
+volatile uint32_t compassAskedAtMs = 0;
+volatile bool compassAsked = false;
+volatile uint16_t compassCalibrationRequest = 0;
+volatile bool compassCalibrationRunning = false;
+} // namespace
+
 concurrency::Lock latestCompassMagLock;
 CompassAccelSample latestCompassMagSample;
 } // namespace
@@ -156,6 +168,7 @@ void MotionSensor::finishCalibrationIfExpired(bool &showingScreen, const char *f
         return;
 
     doCalibration = false;
+    compassCalibrationRunning = false;
     endCalibrationAt = 0;
     showingScreen = false;
     saveMagnetometerCalibration(filePath, highestX, lowestX, highestY, lowestY, highestZ, lowestZ);
@@ -171,6 +184,7 @@ void MotionSensor::finishCalibrationIfExpired(bool &showingScreen, const char *f
 void MotionSensor::startCalibrationWindow(uint16_t forSeconds)
 {
     doCalibration = true;
+    compassCalibrationRunning = true;
     const uint32_t calibrateFor = static_cast<uint32_t>(forSeconds) * 1000U;
     endCalibrationAt = Time::timerEndsAtMillis(calibrateFor);
 #if !defined(MESHTASTIC_EXCLUDE_SCREEN) && HAS_SCREEN
@@ -248,6 +262,48 @@ bool MotionSensor::getLatestCompassAccelSample(float &x, float &y, float &z, uin
 
     ageMs = millis() - sampledAtMs;
     return true;
+}
+
+void MotionSensor::publishCompassHeading(float degrees)
+{
+    latestHeading = degrees;
+    latestHeadingAtMs = millis();
+    latestHeadingValid = true;
+}
+
+bool MotionSensor::getLatestCompassHeading(float &degrees, uint32_t &ageMs)
+{
+    compassAskedAtMs = millis();
+    compassAsked = true;
+    if (!latestHeadingValid)
+        return false;
+    degrees = latestHeading;
+    // the other task may have stamped a reading after millis() was read here: that is an age of nothing, not of 49 days
+    const uint32_t age = millis() - latestHeadingAtMs;
+    ageMs = age > 0x80000000UL ? 0 : age;
+    return true;
+}
+
+bool MotionSensor::compassWanted()
+{
+    return compassCalibrationRequest || compassCalibrationRunning || (compassAsked && (int32_t)(millis() - compassAskedAtMs) < (int32_t)COMPASS_WANTED_MS);
+}
+
+void MotionSensor::requestCompassCalibration(uint16_t forSeconds)
+{
+    compassCalibrationRequest = forSeconds;
+}
+
+uint16_t MotionSensor::takeCompassCalibrationRequest()
+{
+    const uint16_t seconds = compassCalibrationRequest;
+    compassCalibrationRequest = 0;
+    return seconds;
+}
+
+bool MotionSensor::compassCalibrating()
+{
+    return compassCalibrationRequest || compassCalibrationRunning;
 }
 
 void MotionSensor::publishCompassMagSample(float x, float y, float z)

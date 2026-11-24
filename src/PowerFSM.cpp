@@ -164,7 +164,8 @@ static void lsIdle()
         // while a host is there, like the preflight veto below; a node on a battery or a charger
         // still sleeps. A build can opt out with MESHTASTIC_LIGHT_SLEEP_IGNORE_USB_CONSOLE.
         // If some other service would stall sleep, don't let sleep happen yet
-        if ((MESHTASTIC_LIGHT_SLEEP_IGNORE_USB_CONSOLE || !usbConsoleHostAttached()) && doPreflightSleep()) {
+        if ((MESHTASTIC_LIGHT_SLEEP_IGNORE_USB_CONSOLE || !usbConsoleHostAttached()) && !lightSleepHeldOff() &&
+            doPreflightSleep()) {
             // Briefly come out of sleep long enough to blink the led once every few seconds
             uint32_t sleepTime = SLEEP_TIME;
 
@@ -195,7 +196,7 @@ static void lsIdle()
                 pressed = !digitalRead(config.device.button_gpio ? config.device.button_gpio : BUTTON_PIN);
 #elif defined(KB_INT)
                 // keyboard press (probably) triggered GPIO interrupt
-                pressed = true;
+                pressed = lightSleepWokeByKey();
 #endif
                 if (pressed) {
                     powerFSM.trigger(EVENT_PRESS);
@@ -474,12 +475,15 @@ void PowerFSM_setup()
     if (config.display.screen_on_secs > 0)
 #endif
     {
-        powerFSM.add_timed_transition(&stateON, &stateDARK,
-                                      Default::getConfiguredOrDefaultMs(config.display.screen_on_secs, default_screen_on_secs),
-                                      NULL, "Screen-on timeout");
-        powerFSM.add_timed_transition(&statePOWER, &stateDARK,
-                                      Default::getConfiguredOrDefaultMs(config.display.screen_on_secs, default_screen_on_secs),
-                                      NULL, "Screen-on timeout");
+        uint32_t screenOnMs = Default::getConfiguredOrDefaultMs(config.display.screen_on_secs, default_screen_on_secs);
+#ifdef LIGHT_SLEEP_QUICK_SECS
+        // The display of this build says that it is in use with a heartbeat every 20 s, and the wait in DARK is
+        // only seconds: a screen-on time near or below those 20 s would let the processor sleep under a lit screen.
+        if (screenOnMs < 45000)
+            screenOnMs = 45000;
+#endif
+        powerFSM.add_timed_transition(&stateON, &stateDARK, screenOnMs, NULL, "Screen-on timeout");
+        powerFSM.add_timed_transition(&statePOWER, &stateDARK, screenOnMs, NULL, "Screen-on timeout");
     }
 
 // We never enter light-sleep or NB states on NRF52 (because the CPU uses so little power normally)
@@ -500,10 +504,14 @@ void PowerFSM_setup()
 
         // If ESP32 and using power-saving, timer mover from DARK to light-sleep
         // Also serves purpose of the old DARK to DARK transition(?) See https://github.com/meshtastic/firmware/issues/3517
-        powerFSM.add_timed_transition(
-            &stateDARK, &stateLS,
-            Default::getConfiguredOrDefaultMs(config.power.wait_bluetooth_secs, default_wait_bluetooth_secs), NULL,
-            "Bluetooth timeout");
+        // DARK is the wait for a phone to fetch what arrived over Bluetooth. With Bluetooth switched off nobody
+        // comes, and on a busy mesh a wait of a minute after every packet heard leaves hardly any sleep.
+        uint32_t darkMs = Default::getConfiguredOrDefaultMs(config.power.wait_bluetooth_secs, default_wait_bluetooth_secs);
+#ifdef LIGHT_SLEEP_QUICK_SECS
+        if (!config.bluetooth.enabled)
+            darkMs = LIGHT_SLEEP_QUICK_SECS * 1000UL;
+#endif
+        powerFSM.add_timed_transition(&stateDARK, &stateLS, darkMs, NULL, "Bluetooth timeout");
     } else {
         // If ESP32, but not using power-saving, check periodically if config has drifted out of stateDark
         powerFSM.add_timed_transition(&stateDARK, &stateDARK,

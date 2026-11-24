@@ -33,7 +33,8 @@ class PositionModule : public ProtobufModule<meshtastic_Position>, private concu
     /**
      * Send our position into the mesh. True only when the router took the packet.
      */
-    bool sendOurPosition(NodeNum dest, bool wantReplies = false, uint8_t channel = 0);
+    // direct: without hops, so that only who hears this device itself gets it (and answers the same way)
+    bool sendOurPosition(NodeNum dest, bool wantReplies = false, uint8_t channel = 0, bool direct = false);
     bool sendOurPosition();
 
     /**

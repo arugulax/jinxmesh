@@ -64,6 +64,8 @@ bool ascending = true;
 #else
 #define EXT_NOTIFICATION_MODULE_OUTPUT 0
 #endif
+extern "C" const char *jinxmesh_tone(int direct, int channel, const char *text, unsigned length);
+
 #define EXT_NOTIFICATION_MODULE_OUTPUT_MS 1000
 
 #define EXT_NOTIFICATION_FAST_THREAD_MS 25
@@ -189,7 +191,7 @@ int32_t ExternalNotificationModule::runOnce()
                 rtttl::play();
             } else if (isNagging && !Throttle::deadlinePassed(nagCycleCutoff)) {
                 // start the song again if we have time left
-                rtttl::begin(config.device.buzzer_gpio, rtttlConfig.ringtone);
+                rtttl::begin(config.device.buzzer_gpio, toneNow());
             }
             // we need fast updates to play the RTTTL
             delay = EXT_NOTIFICATION_FAST_THREAD_MS;
@@ -327,6 +329,7 @@ void ExternalNotificationModule::stopNow()
     // Clearing isNagging disarms the cycle; nagCycleCutoff is never read without it.
     isNagging = false;
     buzzerShouldAlert = false;
+    tone = nullptr; // the next alert starts from the configured ringtone again
 
 #ifdef HAS_I2S
     // GPIO0 is used as mclk for I2S audio and set to OUTPUT by the sound library
@@ -494,6 +497,10 @@ ProcessMessage ExternalNotificationModule::handleReceived(const meshtastic_MeshP
                     LOG_INFO("Buzzer suppressed: mode DIRECT_MSG_ONLY");
                 } else {
                     // Buzz if buzzer mode is not in DIRECT_MSG_ONLY or is DM to us
+#if !MESHTASTIC_EXCLUDE_RTTTL
+                    // the keyboard view may have a tune of its own for this kind of message
+                    tone = jinxmesh_tone(isDmToUs ? 1 : 0, (int)mp.channel, (const char *)p.payload.bytes, p.payload.size);
+#endif
                     triggerBuzzerOutput();
                 }
             }
@@ -507,6 +514,30 @@ ProcessMessage ExternalNotificationModule::handleReceived(const meshtastic_MeshP
     return ProcessMessage::CONTINUE; // Let others look at this message also if they want
 }
 
+#if !MESHTASTIC_EXCLUDE_RTTTL
+const char *ExternalNotificationModule::toneNow(void) const
+{
+    return tone && tone[0] ? tone : rtttlConfig.ringtone;
+}
+
+bool ExternalNotificationModule::playTone(const char *rtttl)
+{
+    if (!rtttl || !rtttl[0] || !moduleConfig.external_notification.enabled || !moduleConfig.external_notification.use_pwm ||
+        !config.device.buzzer_gpio || !canBuzz())
+        return false;
+    tone = rtttl;
+    buzzerShouldAlert = true; // runOnce() keeps the tune going while this is set, and clears it at its end
+    rtttl::begin(config.device.buzzer_gpio, rtttl);
+    setIntervalFromNow(0);
+    return true;
+}
+#else
+const char *ExternalNotificationModule::toneNow(void) const
+{
+    return "";
+}
+#endif
+
 void ExternalNotificationModule::triggerBuzzerOutput()
 {
     if (moduleConfig.external_notification.use_i2s_as_buzzer) {
@@ -515,7 +546,7 @@ void ExternalNotificationModule::triggerBuzzerOutput()
 #endif
     } else if (moduleConfig.external_notification.use_pwm) {
 #if !MESHTASTIC_EXCLUDE_RTTTL
-        rtttl::begin(config.device.buzzer_gpio, rtttlConfig.ringtone);
+        rtttl::begin(config.device.buzzer_gpio, toneNow());
 #endif
     } else {
         setExternalState(2, true);

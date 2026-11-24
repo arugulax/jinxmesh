@@ -441,7 +441,7 @@ bool PositionModule::sendOurPositionToPhone()
     return true;
 }
 
-bool PositionModule::sendOurPosition(NodeNum dest, bool wantReplies, uint8_t channel)
+bool PositionModule::sendOurPosition(NodeNum dest, bool wantReplies, uint8_t channel, bool direct)
 {
     if (!config.position.fixed_position && !nodeDB->hasLocalPositionSinceBoot()) {
         LOG_DEBUG("Skip position send; no fresh position since boot");
@@ -472,6 +472,8 @@ bool PositionModule::sendOurPosition(NodeNum dest, bool wantReplies, uint8_t cha
 
     if (channel > 0)
         p->channel = channel;
+    if (direct)
+        p->hop_limit = 0;
 
     // Rejected (full TX queue, duty cycle abort) means released unsent: never stamp the cadence.
     ErrorCode res = service->sendToMesh(p, RX_SRC_LOCAL, true);

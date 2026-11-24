@@ -70,6 +70,20 @@ class MeshService
     StaticPointerQueue<meshtastic_ClientNotification, MAX_RX_NOTIFICATION_TOPHONE> toPhoneClientNotificationQueue;
 #endif
 
+#ifdef USE_PACKET_API
+    // The screen (PacketAPI) is a client next to the phone. From one queue each would take the other's
+    // packets, so the screen has copies of its own of what goes to the phone.
+#ifdef ARCH_PORTDUINO
+    PointerQueue<meshtastic_MeshPacket> toScreenQueue;
+    PointerQueue<meshtastic_QueueStatus> toScreenQueueStatusQueue;
+    PointerQueue<meshtastic_ClientNotification> toScreenClientNotificationQueue;
+#else
+    StaticPointerQueue<meshtastic_MeshPacket, MAX_RX_TOPHONE> toScreenQueue;
+    StaticPointerQueue<meshtastic_QueueStatus, MAX_RX_QUEUESTATUS_TOPHONE> toScreenQueueStatusQueue;
+    StaticPointerQueue<meshtastic_ClientNotification, MAX_RX_NOTIFICATION_TOPHONE> toScreenClientNotificationQueue;
+#endif
+#endif
+
     // This holds the last QueueStatus send
     meshtastic_QueueStatus lastQueueStatus;
 
@@ -139,6 +153,17 @@ class MeshService
 
     /// Return the next ClientNotification packet destined to the phone.
     meshtastic_ClientNotification *getClientNotificationForPhone() { return toPhoneClientNotificationQueue.dequeuePtr(0); }
+
+#ifdef USE_PACKET_API
+    /// The same three for the screen, from its own queues
+    meshtastic_MeshPacket *getForScreen() { return toScreenQueue.dequeuePtr(0); }
+    meshtastic_QueueStatus *getQueueStatusForScreen() { return toScreenQueueStatusQueue.dequeuePtr(0); }
+    meshtastic_ClientNotification *getClientNotificationForScreen() { return toScreenClientNotificationQueue.dequeuePtr(0); }
+    void copyToScreen(const meshtastic_MeshPacket &p);
+    /// What one client sent, shown to the other as a message of this node: a text, a reaction, a waypoint
+    void mirrorToScreen(const meshtastic_MeshPacket &sent);
+    void mirrorToPhone(const meshtastic_MeshPacket &sent);
+#endif
 
     // search the queue for a request id and return the matching nodenum
     NodeNum getNodenumFromRequestId(uint32_t request_id);

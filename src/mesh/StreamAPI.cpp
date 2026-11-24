@@ -157,8 +157,11 @@ int32_t StreamAPI::readStream()
             // console->printf("rxPtr %d ptr=%d c=0x%x\n", rxPtr, ptr, c);
 
             if (ptr == 0) { // looking for START1
-                if (c != START1)
-                    rxPtr = 0;     // failed to find framing
+                if (c != START1) {
+                    rxPtr = 0; // failed to find framing
+                    if (strayByte(c))
+                        return 250;
+                }
             } else if (ptr == 1) { // looking for START2
                 // A byte that fails START2 can itself be the START1 of the real frame (0x94 0x94
                 // 0xc3 ...): discarding it drops the frame behind a single stray marker.

@@ -23,6 +23,9 @@
 #include "modules/NodeInfoModule.h"
 #include "modules/PositionModule.h"
 #include "modules/RoutingModule.h"
+#ifdef USE_PACKET_API
+#include "api/PacketAPI.h"
+#endif
 #include <assert.h>
 #include <string>
 
@@ -54,10 +57,18 @@ MeshService *service;
 #define MAX_MQTT_PROXY_MESSAGES 16
 static MemoryPool<meshtastic_MqttClientProxyMessage, MAX_MQTT_PROXY_MESSAGES> staticMqttClientProxyMessagePool;
 
+#ifdef USE_PACKET_API
+#define MAX_QUEUE_STATUS 8 // the screen has copies of its own
+#else
 #define MAX_QUEUE_STATUS 4
+#endif
 static MemoryPool<meshtastic_QueueStatus, MAX_QUEUE_STATUS> staticQueueStatusPool;
 
+#ifdef USE_PACKET_API
+#define MAX_CLIENT_NOTIFICATIONS 8 // the screen has copies of its own
+#else
 #define MAX_CLIENT_NOTIFICATIONS 4
+#endif
 static MemoryPool<meshtastic_ClientNotification, MAX_CLIENT_NOTIFICATIONS> staticClientNotificationPool;
 
 Allocator<meshtastic_MqttClientProxyMessage> &mqttClientProxyMessagePool = staticMqttClientProxyMessagePool;
@@ -73,6 +84,11 @@ MeshService::MeshService()
 #ifdef ARCH_PORTDUINO
     : toPhoneQueue(MAX_RX_TOPHONE), toPhoneQueueStatusQueue(MAX_RX_QUEUESTATUS_TOPHONE),
       toPhoneMqttProxyQueue(MAX_RX_MQTTPROXY_TOPHONE), toPhoneClientNotificationQueue(MAX_RX_NOTIFICATION_TOPHONE)
+#ifdef USE_PACKET_API
+      ,
+      toScreenQueue(MAX_RX_TOPHONE), toScreenQueueStatusQueue(MAX_RX_QUEUESTATUS_TOPHONE),
+      toScreenClientNotificationQueue(MAX_RX_NOTIFICATION_TOPHONE)
+#endif
 #endif
 {
     lastQueueStatus = {0, 0, 16, 0};
@@ -413,6 +429,19 @@ ErrorCode MeshService::sendQueueStatusToPhone(const meshtastic_QueueStatus &qs, 
 
     lastQueueStatus = *copied;
 
+#ifdef USE_PACKET_API
+    if (packetAPI) {
+        if (toScreenQueueStatusQueue.numFree() == 0) {
+            meshtastic_QueueStatus *d = toScreenQueueStatusQueue.dequeuePtr(0);
+            if (d)
+                releaseQueueStatusToPool(d);
+        }
+        meshtastic_QueueStatus *forScreen = queueStatusPool.allocCopy(*copied, 0);
+        if (forScreen && !toScreenQueueStatusQueue.enqueue(forScreen, 0))
+            releaseQueueStatusToPool(forScreen);
+    }
+#endif
+
     res = toPhoneQueueStatusQueue.enqueue(copied, 0);
     if (!res)
         releaseQueueStatusToPool(copied);
@@ -552,6 +581,10 @@ void MeshService::sendToPhone(meshtastic_MeshPacket *p)
 #endif
 #endif
 
+#ifdef USE_PACKET_API
+    copyToScreen(*p);
+#endif
+
     if (toPhoneQueue.numFree() == 0) {
         // ROUTING_APP is the phone's only delivery confirmation, so it displaces the oldest like
         // text does. Gate the variant: decoded.portnum aliases encrypted.size in the union.
@@ -578,6 +611,70 @@ void MeshService::sendToPhone(meshtastic_MeshPacket *p)
     }
     fromNum++;
 }
+
+#ifdef USE_PACKET_API
+/**
+ * The screen's own copy of a packet for the phone. When the screen does not keep up the oldest goes,
+ * whatever it is: the screen is always there and reads within milliseconds, so that is a fault, not a
+ * phone that is away.
+ */
+void MeshService::copyToScreen(const meshtastic_MeshPacket &p)
+{
+    if (!packetAPI)
+        return;
+    if (toScreenQueue.numFree() == 0) {
+        meshtastic_MeshPacket *d = toScreenQueue.dequeuePtr(0);
+        if (d)
+            releaseToPool(d);
+    }
+    meshtastic_MeshPacket *copy = packetPool.allocCopy(p, 0);
+    if (copy && !toScreenQueue.enqueue(copy, 0))
+        releaseToPool(copy);
+}
+#endif
+
+#ifdef USE_PACKET_API
+/**
+ * A client sees what it sent itself and what the radio hears, not what another client of the same node
+ * sent. With a screen and a phone side by side each chat would show half of the node's own messages, so
+ * the one gets a copy of what the other sent, marked as coming from this node, the way the phone gets a
+ * copy of a canned message (ccToPhone).
+ */
+static bool mirrored(const meshtastic_MeshPacket &sent, meshtastic_MeshPacket &copy)
+{
+    if (sent.which_payload_variant != meshtastic_MeshPacket_decoded_tag ||
+        !IS_ONE_OF(sent.decoded.portnum, meshtastic_PortNum_TEXT_MESSAGE_APP, meshtastic_PortNum_WAYPOINT_APP))
+        return false;
+    copy = sent;
+    copy.from = nodeDB->getNodeNum();
+    return true;
+}
+
+void MeshService::mirrorToScreen(const meshtastic_MeshPacket &sent)
+{
+    meshtastic_MeshPacket copy;
+    if (mirrored(sent, copy))
+        copyToScreen(copy);
+}
+
+void MeshService::mirrorToPhone(const meshtastic_MeshPacket &sent)
+{
+    meshtastic_MeshPacket copy;
+    if (!mirrored(sent, copy))
+        return;
+    // not by sendToPhone(): that one copies to the screen, which sent this
+    if (toPhoneQueue.numFree() == 0) {
+        meshtastic_MeshPacket *d = toPhoneQueue.dequeuePtr(0);
+        if (d)
+            releaseToPool(d);
+    }
+    meshtastic_MeshPacket *p = packetPool.allocCopy(copy, 0);
+    if (p && !toPhoneQueue.enqueue(p, 0))
+        releaseToPool(p);
+    else if (p)
+        fromNum++;
+}
+#endif
 
 void MeshService::sendMqttMessageToClientProxy(meshtastic_MqttClientProxyMessage *m)
 {
@@ -615,6 +712,18 @@ void MeshService::sendRoutingErrorResponse(meshtastic_Routing_Error error, const
 void MeshService::sendClientNotification(meshtastic_ClientNotification *n)
 {
     LOG_DEBUG("Send client notification to phone");
+#ifdef USE_PACKET_API
+    if (packetAPI) {
+        if (toScreenClientNotificationQueue.numFree() == 0) {
+            meshtastic_ClientNotification *d = toScreenClientNotificationQueue.dequeuePtr(0);
+            if (d)
+                releaseClientNotificationToPool(d);
+        }
+        meshtastic_ClientNotification *forScreen = clientNotificationPool.allocCopy(*n, 0);
+        if (forScreen && !toScreenClientNotificationQueue.enqueue(forScreen, 0))
+            releaseClientNotificationToPool(forScreen);
+    }
+#endif
     if (toPhoneClientNotificationQueue.numFree() == 0) {
         LOG_WARN("ClientNotification queue full, discard oldest");
         meshtastic_ClientNotification *d = toPhoneClientNotificationQueue.dequeuePtr(0);
@@ -690,6 +799,12 @@ int MeshService::onGPSChanged(const meshtastic::GPSStatus *newStatus)
 #endif
 bool MeshService::isToPhoneQueueEmpty()
 {
+#ifdef USE_PACKET_API
+    // Callers ask before they queue the node's own position or telemetry. With a screen that is the reader
+    // that is always there; the phone's queue stays full for as long as no phone fetches it.
+    if (packetAPI)
+        return toScreenQueue.isEmpty();
+#endif
     return toPhoneQueue.isEmpty();
 }
 

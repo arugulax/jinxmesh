@@ -111,4 +111,7 @@ extern int m9Version;
 #define ADC_MULTIPLIER 2.0f
 #define BAT_MEASURE_ADC_UNIT ADC_UNIT_2
 #define ADC_CHANNEL ADC_CHANNEL_2
-#define OCV_ARRAY 4200, 4080, 3980, 3920, 3870, 3820, 3790, 3750, 3700, 3600, 3100
+// The M9 has a 3.8 V nominal (4.35 V full) cell on an LGS4056HDA-4.35 charger: a full battery reads 4.33-4.36 V here.
+// The 4.2 V table showed 100 % down to 4.20 V, the first sixth of the capacity. Typical curve of such a cell, not yet
+// checked against a measured discharge of an M9; the last point is also where the firmware shuts down.
+#define OCV_ARRAY 4310, 4200, 4100, 4010, 3930, 3860, 3810, 3780, 3740, 3680, 3300

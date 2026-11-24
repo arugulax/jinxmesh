@@ -95,6 +95,8 @@ class ExternalNotificationModule : public SinglePortModule, private concurrency:
     void startNotification();
 
 #if !MESHTASTIC_EXCLUDE_RTTTL
+    /// Plays that tune on the PWM buzzer once, when sound is allowed. The text has to stay where it is.
+    bool playTone(const char *rtttl);
     void handleGetRingtone(const meshtastic_MeshPacket &req, meshtastic_AdminMessage *response);
     void handleSetRingtone(const char *from_msg);
 #endif
@@ -119,6 +121,9 @@ class ExternalNotificationModule : public SinglePortModule, private concurrency:
 
     bool isSilenced = false;
     bool buzzerShouldAlert = false;
+    /// The tune of the alert at hand when it is not the configured ringtone (see jinx/JinxTones.cpp)
+    const char *tone = nullptr;
+    const char *toneNow(void) const;
 
     virtual AdminMessageHandleResult handleAdminMessageForModule(const meshtastic_MeshPacket &mp,
                                                                  meshtastic_AdminMessage *request,

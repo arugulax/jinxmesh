@@ -131,6 +131,9 @@ class Router : protected concurrency::OSThread, protected PacketHistory
      */
     virtual ErrorCode send(meshtastic_MeshPacket *p);
 
+    /// True while a packet waits for its acknowledgment and may have to be sent again
+    virtual bool hasPendingRetransmissions() const { return false; }
+
     /**
      * Transparent mode: queue a client-built, already-encrypted frame on the radio exactly as given.
      * Only the radio's payload capacity is enforced; airtime rules are the client's. Always takes ownership of p.

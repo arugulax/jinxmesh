@@ -60,6 +60,11 @@ bool QMI8658Sensor::init()
 
 int32_t QMI8658Sensor::runOnce()
 {
+#ifdef USE_KEYBOARD_VIEW
+    // only the compass uses the samples there, and only while a screen shows it
+    if (!wakeOnMotion && !compassWanted())
+        return 1000;
+#endif
     float ax, ay, az;
     if (sensor.getAccelerometer(ax, ay, az)) {
 #ifdef MESHTASTIC_INCLUDE_INKHUD

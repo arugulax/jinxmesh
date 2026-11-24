@@ -1,3 +1,4 @@
+#include "jinx/JinxFiles.h"
 #include "configuration.h"
 
 #if !MESHTASTIC_EXCLUDE_GPS
@@ -10,6 +11,7 @@
 #include "NodeDB.h"
 #include "PowerMon.h"
 #include "RadioLibInterface.h"
+#include "Router.h"
 #include "TransmitHistory.h"
 #include "detect/LoRaRadioType.h"
 #include "error.h"
@@ -200,6 +202,47 @@ bool doPreflightSleep(bool deepSleep)
         return false; // vetoed
     else
         return true;
+}
+
+/**
+ * Light sleep stops the CPU, not what the CPU was in the middle of. Two things are worth staying up for:
+ *
+ * - A GPS search. The receiver stays powered while the CPU sleeps, nobody reads what it sends, and the fix is only
+ *   taken (and the receiver switched off) in the next waking window. Staying up for the usual half minute costs
+ *   less than a receiver that runs for minutes. A search that drags on (indoors) holds sleep off only at its start.
+ * - A WiFi link that somebody set up while running (the display's file upload and map download): the link does
+ *   not survive a light sleep. Whoever keeps it is in charge of dropping it when it is idle.
+ *
+ * Only builds that define LIGHT_SLEEP_HOLD_GPS_MS ask; everywhere else light sleep is what it was.
+ */
+bool lightSleepHeldOff()
+{
+#ifdef LIGHT_SLEEP_HOLD_GPS_MS
+#if !MESHTASTIC_EXCLUDE_GPS
+    if (gps && (gps->isSearching(LIGHT_SLEEP_HOLD_GPS_MS) || GPS::tracking()))
+        return true;
+#endif
+#if HAS_WIFI && defined(ARCH_ESP32)
+    if (WiFi.status() == WL_CONNECTED)
+        return true;
+#endif
+    // a file is coming in over the serial console: asleep, the processor would stop answering in the middle
+    if (jinxFilesActive())
+        return true;
+    // A packet that waits for its acknowledgment is sent again after some seconds, by a timer that does not run
+    // while the processor sleeps. With a wait of a minute before sleep that hardly mattered; with seconds it does.
+    if (router && router->hasPendingRetransmissions())
+        return true;
+#endif
+    return false;
+}
+
+// Set by doLightSleep(). True unless the lines say that it was the radio and not the keyboard.
+static bool lightSleepKeyWake = true;
+
+bool lightSleepWokeByKey()
+{
+    return lightSleepKeyWake;
 }
 
 /// Tell devices we are going to sleep and wait for them to handle things
@@ -604,6 +647,15 @@ esp_sleep_wakeup_cause_t doLightSleep(uint64_t sleepMsec) // FIXME, use a more r
             loraIrqSkippedSleeps = 0;
         res = esp_light_sleep_start();
     }
+#if defined(KB_INT) && defined(LIGHT_SLEEP_QUICK_SECS)
+    // Which line ended the sleep? Looked at before anything reads the keyboard or the radio, while both still
+    // show it. Every GPIO wake used to count as a key press, and a key press keeps the processor up for the
+    // whole screen-on time: half a minute for every packet heard. When neither line shows anything, it was a key.
+    {
+        const bool keyLine = gpio_get_level((gpio_num_t)KB_INT) == (KB_INT_WAKE_ON_HIGH ? 1 : 0);
+        lightSleepKeyWake = !loraIrqPending && (keyLine || !loraWakeIrqAsserted());
+    }
+#endif
     if (res != ESP_OK) {
         LOG_ERROR("esp_light_sleep_start result %d", res);
     }

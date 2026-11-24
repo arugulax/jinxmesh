@@ -8,6 +8,7 @@
 #include "SerialConsole.h"
 #include "Throttle.h"
 #include "concurrency/LockGuard.h"
+#include "jinx/JinxFiles.h"
 #include "main.h"
 #include "time.h"
 
@@ -121,6 +122,9 @@ SerialConsole::SerialConsole() : StreamAPI(&Port), RedirectablePrint(&Port), con
     Port.setTX(SERIAL2_TX);
     Port.setRX(SERIAL2_RX);
 #endif
+#if defined(USE_KEYBOARD_VIEW) && defined(ARCH_ESP32) && !defined(IS_USB_SERIAL)
+    Port.setRxBufferSize(16384); // the file transfer sends one block ahead while another is written to the card
+#endif
     Port.begin(SERIAL_BAUD);
     // Boot with console TX in non-blocking mode: no host is provably listening yet.
     setHostDraining(false);
@@ -171,6 +175,10 @@ int32_t SerialConsole::runOnce()
         return 250;
     }
 #endif
+
+    // the file transfer over the cable has the port to itself (see jinx/JinxFiles.cpp)
+    if (jinxFilesActive())
+        return 250;
 
     int32_t delay = runOncePart();
 #if defined(SERIAL_HAS_ON_RECEIVE) || defined(CONFIG_IDF_TARGET_ESP32S2)
@@ -353,4 +361,10 @@ void SerialConsole::log_to_serial(const char *logLevel, const char *format, va_l
     }
 
     RedirectablePrint::log_to_serial(logLevel, format, arg);
+}
+
+/// Hand console bytes outside of frames to the file transfer, which starts on its request line.
+bool SerialConsole::strayByte(uint8_t c)
+{
+    return jinxFilesByte(c);
 }

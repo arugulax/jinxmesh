@@ -61,8 +61,21 @@ bool QMC6309Sensor::readMagnetometer(float &xGauss, float &yGauss, float &zGauss
 
 int32_t QMC6309Sensor::runOnce()
 {
+#ifdef USE_KEYBOARD_VIEW
+    // The keyboard view fetches the heading while a screen shows it. Nobody asking: no reading 50 times a second.
+    if (const uint16_t seconds = takeCompassCalibrationRequest())
+        calibrate(seconds);
+    if (!doCalibration && !compassWanted())
+        return 500;
+#endif
     float magX = 0, magY = 0, magZ = 0;
     if (!readMagnetometer(magX, magY, magZ)) {
+#if !defined(MESHTASTIC_EXCLUDE_SCREEN)
+        // a sensor that stopped answering must not leave a calibration running for good
+        if (doCalibration)
+            finishCalibrationIfExpired(showingScreen, compassCalibrationFileName, highestX, lowestX, highestY, lowestY, highestZ,
+                                       lowestZ);
+#endif
         return QMC6309_UPDATE_INTERVAL_MS;
     }
 
@@ -126,6 +139,7 @@ int32_t QMC6309Sensor::runOnce()
         heading += 360.0f;
 
     heading = applyCompassOrientation(heading);
+    publishCompassHeading(heading >= 360.0f ? heading - 360.0f : heading);
     if (screen)
         screen->setHeading(heading);
 #endif

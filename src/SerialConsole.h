@@ -39,6 +39,9 @@ class SerialConsole : public StreamAPI, public RedirectablePrint, private concur
     /// Check the current underlying physical link to see if the client is currently connected
     virtual bool checkIsConnected() override;
 
+    /// Console bytes outside of frames: the request for the file transfer over the cable is among them
+    virtual bool strayByte(uint8_t c) override;
+
     /// Wake the serial thread when PhoneAPI queues output.
     virtual void onNowHasData(uint32_t fromRadioNum) override;
 

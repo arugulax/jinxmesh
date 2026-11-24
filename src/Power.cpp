@@ -103,7 +103,12 @@
 // How often the free-heap line is written to the debug log. The Power thread polls every
 // 20s once it is initialized, so that is the effective granularity. Set to 0 to disable.
 #ifndef HEAP_LOG_INTERVAL_MS
+#ifdef USE_KEYBOARD_VIEW
+// every half minute: close enough to an event (a phone connecting, the map opening) to tell what took the memory
+#define HEAP_LOG_INTERVAL_MS (30 * 1000)
+#else
 #define HEAP_LOG_INTERVAL_MS (5 * 60 * 1000)
+#endif
 #endif
 
 #if defined(BATTERY_PIN) && defined(ARCH_ESP32)

@@ -36,6 +36,12 @@ void setCPUFast(bool on);
  */
 bool doPreflightSleep(bool deepSleep = false);
 
+/// True while there is work a light sleep would cut short although nothing is queued for the radio
+bool lightSleepHeldOff();
+
+/// After a light sleep that a GPIO ended: was it the keyboard's line rather than the radio's?
+bool lightSleepWokeByKey();
+
 /// When a power-saving module wants to deep sleep but doPreflightSleep() vetoes it (e.g. the
 /// radio is still transmitting), re-check this often, and give up waiting after this many
 /// attempts so a busy mesh can't keep the node awake forever

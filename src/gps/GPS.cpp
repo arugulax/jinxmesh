@@ -1601,6 +1601,39 @@ void GPS::setConnected()
     }
 }
 
+static uint32_t trackingSince = 0, trackingFor = 0; // millis; trackingFor 0: nobody follows the position
+static int32_t fixLatitude = 0, fixLongitude = 0;
+static uint32_t fixAt = 0;
+static bool fixKnown = false;
+
+void GPS::keepTracking(uint32_t ms)
+{
+    trackingSince = millis();
+    trackingFor = ms;
+}
+
+bool GPS::tracking()
+{
+    if (trackingFor && millis() - trackingSince >= trackingFor)
+        trackingFor = 0;
+    return trackingFor != 0;
+}
+
+bool GPS::lastFix(int32_t &latitude, int32_t &longitude, uint32_t &ageMs)
+{
+    if (!fixKnown)
+        return false;
+    latitude = fixLatitude;
+    longitude = fixLongitude;
+    ageMs = millis() - fixAt;
+    return true;
+}
+
+bool GPS::isSearching(uint32_t withinMs) const
+{
+    return powerState == GPS_ACTIVE && scheduling.elapsedSearchMs() < withinMs;
+}
+
 // We want a GPS lock. Wake the hardware
 void GPS::up()
 {
@@ -1618,6 +1651,8 @@ void GPS::down()
     uint32_t predictedSearchDuration = scheduling.predictedSearchDurationMs();
     uint32_t sleepTime = scheduling.msUntilNextSearch();
     uint32_t updateInterval = Default::getConfiguredOrDefaultMs(config.position.gps_update_interval);
+    if (tracking())
+        updateInterval = 1000; // stays on
 
     LOG_DEBUG("%us until next search", sleepTime / 1000);
 
@@ -1773,7 +1808,7 @@ int32_t GPS::runOnce()
     }
 
     // If we're due for an update, wake the GPS
-    if (!config.position.fixed_position && powerState != GPS_ACTIVE && scheduling.isUpdateDue())
+    if (!config.position.fixed_position && powerState != GPS_ACTIVE && (scheduling.isUpdateDue() || tracking()))
         up();
 
     // quality of the previous fix. We set it to 0 when we go down, so it's a way
@@ -1783,6 +1818,8 @@ int32_t GPS::runOnce()
     if (powerState == GPS_ACTIVE) {
         // if gps_update_interval is <=10s, GPS never goes off, so we treat that differently
         uint32_t updateInterval = Default::getConfiguredOrDefaultMs(config.position.gps_update_interval);
+        if (tracking())
+            updateInterval = 1000; // every fix is published and the receiver stays on
 
         // 1. Got a time for the first time this cycle. lookForTime() keeps refining the RTC after that.
         const bool hadTime = gotTime;
@@ -1799,6 +1836,10 @@ int32_t GPS::runOnce()
         bool gotLoc = lookForLocation();
         if (gotLoc) {
             scheduling.informValidFix();
+            fixLatitude = p.latitude_i;
+            fixLongitude = p.longitude_i;
+            fixAt = millis();
+            fixKnown = true;
 #if GPS_DEBUG
             if (!hasValidLocation) { // declare that we have location ASAP
                 LOG_DEBUG("hasValidLocation RISING EDGE");

@@ -1282,6 +1282,26 @@ void PhoneAPI::sendConfigComplete()
     service->nudgeFromNum();
 }
 
+meshtastic_MeshPacket *PhoneAPI::takeMeshPacket()
+{
+    return service->getForPhone();
+}
+
+meshtastic_QueueStatus *PhoneAPI::takeQueueStatus()
+{
+    return service->getQueueStatusForPhone();
+}
+
+meshtastic_ClientNotification *PhoneAPI::takeClientNotification()
+{
+    return service->getClientNotificationForPhone();
+}
+
+meshtastic_MqttClientProxyMessage *PhoneAPI::takeMqttClientProxyMessage()
+{
+    return service->getMqttClientProxyMessageForPhone();
+}
+
 void PhoneAPI::releasePhonePacket()
 {
     if (packetForPhone) {
@@ -1798,11 +1818,11 @@ bool PhoneAPI::available()
         return true;
     case STATE_SEND_PACKETS: {
         if (!queueStatusPacketForPhone)
-            queueStatusPacketForPhone = service->getQueueStatusForPhone();
+            queueStatusPacketForPhone = takeQueueStatus();
         if (!mqttClientProxyMessageForPhone)
-            mqttClientProxyMessageForPhone = service->getMqttClientProxyMessageForPhone();
+            mqttClientProxyMessageForPhone = takeMqttClientProxyMessage();
         if (!clientNotification)
-            clientNotification = service->getClientNotificationForPhone();
+            clientNotification = takeClientNotification();
         bool hasPacket = !!queueStatusPacketForPhone || !!mqttClientProxyMessageForPhone || !!clientNotification;
 #ifdef MESHTASTIC_PHONEAPI_ACCESS_CONTROL
         if (hasPendingLockdownStatus())
@@ -1829,7 +1849,7 @@ bool PhoneAPI::available()
 #endif
 
         if (!packetForPhone)
-            packetForPhone = service->getForPhone();
+            packetForPhone = takeMeshPacket();
         hasPacket = !!packetForPhone;
         if (hasPacket)
             return true;
@@ -2151,6 +2171,9 @@ bool PhoneAPI::handleToRadioPacket(meshtastic_MeshPacket &p)
                   meshtastic_PortNum_TEXT_MESSAGE_APP))
         lastPortNumToRadio[p.decoded.portnum] = millis();
     service->handleToRadio(p);
+#ifdef USE_PACKET_API
+    service->mirrorToScreen(p); // the screen shows what the phone sent
+#endif
     return true;
 }
 

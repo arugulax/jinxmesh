@@ -102,6 +102,18 @@ class MotionSensor
     static void publishCompassAccelSample(float x, float y, float z);
     static void publishCompassMagSample(float x, float y, float z);
 
+  public:
+    // The heading for a UI that fetches it itself (the keyboard view of device-ui), instead of having it pushed
+    // to the stock screen. Asking marks the compass as wanted for a few seconds: nobody asking lets the sensor
+    // threads idle. A calibration is asked for with a flag, so that the bus is only ever used by the sensor's thread.
+    static void publishCompassHeading(float degrees);
+    static bool getLatestCompassHeading(float &degrees, uint32_t &ageMs);
+    static bool compassWanted();
+    static void requestCompassCalibration(uint16_t forSeconds);
+    static uint16_t takeCompassCalibrationRequest();
+    static bool compassCalibrating();
+
+  protected:
     ScanI2C::FoundDevice device;
 
     // Do calibration if true
