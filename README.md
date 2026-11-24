@@ -109,6 +109,18 @@ The project is three pieces of source, kept as three branches of this one reposi
 
 The branches share no history. Built firmware is attached to releases and never committed.
 
+New work happens on development branches and moves to the branches above when it has been
+tried on a device and approved:
+
+| Published | Development |
+|---|---|
+| `main` | `dev` |
+| `firmware-m9-kb` | `firmware-dev` |
+| `device-ui-kbview` | `device-ui-dev` |
+
+A release is always built from the published branches. The development branches may be
+ahead of the latest release, and may be broken.
+
 On `main`:
 
 | Folder | Holds |
@@ -123,7 +135,7 @@ On `main`:
 ## Contributing
 
 Bug reports with a description of what you did, what you expected and what happened are
-welcome as issues. So are pull requests. Please do not paste serial logs without reading them
+welcome as issues. So are pull requests; please open them against the development branches. Please do not paste serial logs without reading them
 first: a Meshtastic log can contain channel keys.
 
 If a problem also exists in stock Meshtastic, it is better reported to the Meshtastic project.

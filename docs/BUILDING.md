@@ -132,6 +132,19 @@ device-ui is formatted with clang-format and the style file in the tree
 files: some of them do not match the style file, and reformatting them makes later merges
 from upstream harder.
 
+## Branches
+
+| Published | Development |
+|---|---|
+| `main` | `dev` |
+| `firmware-m9-kb` | `firmware-dev` |
+| `device-ui-kbview` | `device-ui-dev` |
+
+Work goes onto the development branches first. When a change has run on a device and is
+approved, the published branch is moved up to it, a release is built from the published
+branches, and `CHANGELOG.md` gets its entry. Clone the development branches instead of the
+published ones if you want the newest code.
+
 ## Keeping up with upstream
 
 The two source branches are ordinary branches on top of an upstream commit, so a newer

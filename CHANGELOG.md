@@ -6,7 +6,9 @@ version followed by the JinxMesh firmware commit.
 
 ## Unreleased
 
-On the source branches; not yet published as a release.
+Nothing yet. New work is on the development branches.
+
+## 2026-11-24-1246 (2.8.3.9485eff)
 
 ### Added
 - Bluetooth and the screen work at the same time. Stock firmware stops feeding the screen

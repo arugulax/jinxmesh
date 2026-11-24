@@ -22,11 +22,10 @@ Each release on the [Releases](../../../releases) page carries:
 |---|---|
 | `firmware-thinknode_m9-tft-kb-<version>.factory.bin` | First install. Written at address `0x0` after erasing the flash. |
 | `firmware-thinknode_m9-tft-kb-<version>.bin` | Update. Written at address `0x10000`. Keeps settings, channels, keys and chats. |
-| `SHA256SUMS` | Checksums of the files |
-| `latest.json` | The same information for tools: file names, sizes, checksums, addresses |
+| `SHA256SUMS` | Checksums of the two files |
 
 `<version>` is the Meshtastic version followed by the JinxMesh commit, for example
-`2.8.3.a2c00a4`. The release notes give the build date, which the device also shows under
+`2.8.3.9485eff`. The release notes give the build date, which the device also shows under
 Settings, System, About.
 
 ## First install
