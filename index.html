@@ -250,9 +250,6 @@ esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x0 firmware-thi
       <p>It is pretty stable, but use it at your own risk. JinxMesh is a hobby project for
       one board, the ThinkNode M9. Some features have only been tried in the simulator so
       far. Found a problem? <a href="https://github.com/arugulax/jinxmesh/issues">Open an issue</a>.</p>
-      <p>If JinxMesh is useful to you, you can support the work:</p>
-      <div class="kofi"><script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support this project on Ko-fi', '#72a4f2', 'X3U521F6CP');kofiwidget2.draw();</script>
-      <noscript><a href="https://ko-fi.com/X3U521F6CP">Support this project on Ko-fi</a></noscript></div>
     </div>
   </div>
 </section>
@@ -266,9 +263,19 @@ esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x0 firmware-thi
   &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors.</p>
   <p>JinxMesh is an independent project. It is not affiliated with or endorsed by Meshtastic LLC
   or Elecrow. Meshtastic&reg; is a registered trademark of Meshtastic LLC.</p>
-  <p class="kofi-foot"><a href='https://ko-fi.com/X3U521F6CP' target='_blank' rel='noopener'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi5.png?v=6' border='0' alt='Support this project at ko-fi.com' /></a></p>
 </footer>
 
+</div>
+<div class="kofi-foot" style="text-align:center;padding:0 0 40px">
+  <span id="kofi-image"><a href='https://ko-fi.com/X3U521F6CP' target='_blank' rel='noopener'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi5.png?v=6' border='0' alt='Support this project at ko-fi.com' /></a></span>
+  <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
+  <script type='text/javascript'>
+    if (window.kofiwidget2) {
+      kofiwidget2.init('Support this project on Ko-fi', '#72a4f2', 'X3U521F6CP');
+      kofiwidget2.draw();
+      document.getElementById('kofi-image').hidden = true; // the button stands in for the picture
+    }
+  </script>
 </div>
 </body>
 </html>
