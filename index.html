@@ -85,6 +85,10 @@
   .device.rotate .frames img[hidden] { display: block; opacity: 0; }
   .device.rotate .dots i { cursor: pointer; width: 7px; height: 7px; }
   .device.rotate .dots i.on { background: #5fb0ff; }
+  .carousel { display: flex; align-items: center; gap: 10px; width: max-content; }
+  .carousel .arrow { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card);
+                     color: var(--ink); font-size: 26px; line-height: 1; cursor: pointer; padding: 0 0 4px; }
+  .carousel .arrow:hover, .carousel .arrow:focus-visible { border-color: var(--blue); color: var(--blue); }
   @media (prefers-reduced-motion: reduce) { .device.rotate .frames img { transition: none; } }
   .device figcaption { color: #9fb0cc; font-size: 13.5px; text-align: center; padding: 10px 0 0; }
   .device .dots { display: flex; gap: 5px; justify-content: center; padding-top: 10px; }
@@ -109,7 +113,7 @@
   footer { border-top: 1px solid var(--line); padding: 30px 0 40px; color: var(--muted); font-size: 14px; }
   @media (max-width: 1140px) {
     .hero { grid-template-columns: 1fr; }
-    .hero .device { margin: 0 auto; }
+    .hero .carousel { margin: 0 auto; }
   }
   @media (max-width: 780px) {
     .two, .grid { grid-template-columns: 1fr; }
@@ -144,7 +148,9 @@
     <a class="btn ghost" href="https://github.com/arugulax/jinxmesh/releases/latest">Download the files</a>
     <p class="note">Open source, GPL-3.0. Built on Meshtastic firmware 2.8.3. Unofficial.</p>
   </div>
-  <figure class="device rotate" style="margin:0" id="rotate">
+  <div class="carousel" id="rotate">
+  <button type="button" class="arrow" id="rotate-prev" aria-label="Previous screenshot">&#8249;</button>
+  <figure class="device rotate" style="margin:0">
     <div class="frames">
       <img src="site/home.png" width="320" height="240" alt="The Home tiles being arranged: five tiles have colors of their own, and the Timer tile is lifted and being carried to a new place" data-caption="Home: move the tiles, pick their colors">
       <img src="site/chat.png" width="320" height="240" alt="A channel chat with a quoted reply and a message being typed" data-caption="Chats, with quoted replies" hidden>
@@ -155,6 +161,8 @@
     <figcaption id="rotate-caption">Home: move the tiles, pick their colors</figcaption>
     <div class="dots" id="rotate-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
   </figure>
+  <button type="button" class="arrow" id="rotate-next" aria-label="Next screenshot">&#8250;</button>
+  </div>
 </div>
 
 <section id="why">
@@ -277,8 +285,8 @@ esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x0 firmware-thi
 
 </div>
 <script>
-  // The picture at the top steps through five screens. It waits while the pointer is on it, and stands
-  // still for people who asked their system for less motion (the dots still switch).
+  // The picture at the top steps through five screens by itself, and by the arrows and the dots. It waits
+  // while the pointer or the keyboard focus is on it.
   (function () {
     var box = document.getElementById('rotate'); if (!box) return;
     var frames = box.querySelectorAll('.frames img'), dots = box.querySelectorAll('#rotate-dots i');
@@ -290,11 +298,14 @@ esptool.py --chip esp32s3 --port PORT --baud 230400 write_flash 0x0 firmware-thi
       caption.textContent = frames[at].dataset.caption;
     }
     dots.forEach(function (dot, i) { dot.addEventListener('click', function () { show(i); }); });
-    box.addEventListener('mouseenter', function () { paused = true; });
-    box.addEventListener('mouseleave', function () { paused = false; });
+    document.getElementById('rotate-prev').addEventListener('click', function () { show(at - 1); });
+    document.getElementById('rotate-next').addEventListener('click', function () { show(at + 1); });
+    ['mouseenter', 'focusin'].forEach(function (e) { box.addEventListener(e, function () { paused = true; }); });
+    ['mouseleave', 'focusout'].forEach(function (e) { box.addEventListener(e, function () { paused = false; }); });
     show(0);
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-      setInterval(function () { if (!paused && !document.hidden) show(at + 1); }, 4000);
+    // with "reduce motion" set the pictures still change, but without the fade and more slowly
+    var calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setInterval(function () { if (!paused && !document.hidden) show(at + 1); }, calm ? 7000 : 4000);
   })();
 </script>
 
