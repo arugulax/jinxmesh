@@ -6,7 +6,14 @@ version followed by the JinxMesh firmware commit.
 
 ## Unreleased
 
-Nothing yet. New work is on the development branches.
+Map tools:
+
+- A map over 4 GB can be built: it is written with 64-bit offsets for `split.py` to cut into
+  ordinary pieces. British Columbia and the territories needed this.
+- Contour lines are made in parallel even when memory allows only one block to be built at a
+  time, and elevation tiles are removed as the build moves east, so the far north no longer
+  takes days or fills the disk.
+- A build that was stopped goes on from the blocks it had finished.
 
 ## 2026-11-24-1246 (2.8.3.9485eff)
 

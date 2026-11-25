@@ -241,6 +241,15 @@ header of each names the map they are pieces of, so the device draws a shared ce
 Output: `<name>-<n>.jmv` numbered from the north-west, or `<name>.jmv` when it fits in one, and
 `<name>.json` with each piece's corners, size and SHA-256.
 
+A map of more than 4 GB does not fit the format, whose offsets are 32 bits. `build.py` writes
+such a map (a province of the far north) with 64-bit offsets and the mark "JMVW" in place of
+"JMVM". That file is only for `split.py`, which reads both; the pieces are ordinary maps.
+
+**Long builds.** Fetching elevation and making contour lines runs in `--workers` processes of
+its own, ahead of the map building, which memory may limit to fewer. A build that is stopped
+keeps its finished blocks in the work folder, and the next run of the same map with the same
+extracts takes them again.
+
 **The archive** (`publish.py <region>...`). One repository per region,
 `<owner>/jinxmesh-maps-<region>` (`M9_MAPS_OWNER` names the owner), with the folders
 `state/` and `province/` as on the card. Which state is in which repository is the table

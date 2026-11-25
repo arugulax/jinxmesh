@@ -3,7 +3,8 @@
 A state can be hundreds of megabytes: too much for one file to host or to send over a cable. The pieces are
 maps like any other ("JMVM", see device-ui/include/util/VectorMap.h), which the device shows side by side as
 it does states, so a card needs only those of the land it is used in. Nothing is built again: the cells are
-copied as they are.
+copied as they are. A map over 4 GB comes from build.py as "JMVW" (64-bit offsets), which is read here just
+the same; its pieces are plain maps.
 
 The land is cut along the cells of the third level (zoom 9, about 78 x 57 km at 44 degrees north): halved
 across its longer side, by bytes, until each part fits. A piece holds the cells of the finer levels within
@@ -27,8 +28,10 @@ def unmerc(x, y):
 def read(path):
     f = open(path, "rb")
     head = f.read(28)
-    if head[:4] != b"JMVM":
+    if head[:4] not in (b"JMVM", b"JMVW"):
         raise SystemExit(f"{path} is no vector map")
+    # "JMVW": what build.py writes when a map is over 4 GB, the same but for 64-bit offsets in the tables
+    entry, entry_format = (16, "<QII") if head[:4] == b"JMVW" else (12, "<III")
     version, count = struct.unpack_from("<HH", head, 4)
     if version != 4:
         raise SystemExit(f"{path}: version {version}, this tool knows 4")
@@ -39,10 +42,10 @@ def read(path):
         levels.append(dict(zoom=cell_zoom, first=first, last=last, x0=x0, y0=y0, cols=cols, rows=rows, where=where))
     for level in levels:
         f.seek(level["where"])
-        table = f.read(12 * level["cols"] * level["rows"])
+        table = f.read(entry * level["cols"] * level["rows"])
         cells = {}
         for i in range(level["cols"] * level["rows"]):
-            offset, lines, names = struct.unpack_from("<III", table, 12 * i)
+            offset, lines, names = struct.unpack_from(entry_format, table, entry * i)
             if offset:
                 cells[(level["x0"] + i % level["cols"], level["y0"] + i // level["cols"])] = (offset, lines, names)
         level["cells"] = cells

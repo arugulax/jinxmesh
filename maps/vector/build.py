@@ -21,6 +21,15 @@ them (contours.cpp next to this file) and kept in the work folder, and the two f
 The contour lines kept are those of whole blocks, so that states that share a block share them as well.
 The two coarse levels are made in one piece each. So a state of any size needs no more memory than its roads.
 
+Fetching the tiles and making the contour lines is the slow part and needs none of the map's data, so it runs
+in processes of its own (--workers of them), a little ahead of the building of the blocks, however few of
+those the memory allows at a time. A build that was stopped goes on where it was: the blocks it had made are
+kept in the work folder and taken again by the next run with the same extracts.
+
+The format holds a map of up to 4 GB. A larger one (a province of the far north) is written with 64-bit
+offsets instead, as "JMVW": no map for the device, but what split.py reads to cut it into pieces, which are
+maps like any other.
+
 Names are settled here, not on the device: for each zoom, which of them have room without running into each
 other, the more important first, and how they lie along their road or stream. For that the widths of the
 device's letters are read from its font (device-ui/include/util/VectorMapFont.h).
@@ -41,6 +50,7 @@ DEM = 14  # zoom of the elevation tiles
 # a folder (file:///.../{z}/{x}/{y}.png): see docs/MAPS.md
 DEM_URL = os.environ.get("M9_DEM_URL", "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png")
 INTERVAL = 20 * FT  # between contour lines, meters
+WIDE = 0xFFFFFFFF  # a map whose offsets pass this is written as "JMVW", with 64-bit offsets, for split.py
 
 CONTOUR20, CONTOUR100, CONTOUR500 = 1, 2, 3
 STREAM, RIVER, WATER, COAST = 10, 11, 12, 13
@@ -956,11 +966,49 @@ def read_contours(path, x0, y0):
                 yield kind, feet, piece
 
 
+def kept_block(out_path):
+    """What an earlier run of the same map left of a block: (index, counts), or nothing."""
+    try:
+        with open(out_path + ".done", "rb") as f:
+            run, size, index, counts = pickle.load(f)
+        if run == G["run"] and os.path.getsize(out_path) == size:
+            return index, counts
+    except Exception:
+        pass
+    return None
+
+
+def make_contours(block):
+    """In a process of the contour pool: the contour lines of a block, unless the block is made already.
+    Not more than a few blocks ahead of the building, which gives the place back (G["ahead"])."""
+    G["ahead"].acquire()
+    if not kept_block(f"{G['work']}/tmp/block-{block[0]}-{block[1]}.cells"):
+        block_contours(*block)
+    return block
+
+
+def drop_tiles(before):
+    """Removes the elevation tiles west of a column of tiles: the blocks are done from west to east, and
+    without this a province of the north leaves more tiles behind than the disk holds."""
+    folder = f"{G['work']}/tiles"
+    for name in os.listdir(folder):
+        if name.endswith(".png"):
+            try:
+                if int(name.split("-")[0]) < before:
+                    os.remove(f"{folder}/{name}")
+            except (ValueError, OSError):
+                pass
+
+
 def do_block(block):
     """The two fine levels of one block, into a file of its own. What is in it: (level, cell x, y, offset,
     bytes of lines, bytes of names) per cell."""
     bx, by = block
     started = time.time()
+    out_path = f"{G['work']}/tmp/block-{bx}-{by}.cells"
+    kept = kept_block(out_path)
+    if kept:
+        return out_path, kept[0], kept[1], 0.0, 0.0
     shift0, shift1 = LEVELS[0][0] - BLOCK, LEVELS[1][0] - BLOCK
     only0 = {(cx, cy) for cx in range(bx << shift0, (bx + 1) << shift0) for cy in range(by << shift0, (by + 1) << shift0)}
     only1 = {(cx, cy) for cx in range(bx << shift1, (bx + 1) << shift1) for cy in range(by << shift1, (by + 1) << shift1)}
@@ -1009,11 +1057,13 @@ def do_block(block):
         _, tile_min, tile_max, _ = LEVELS[level]
         shown = settle(wanted_names(names, level), range(tile_min, tile_max + 1), 10, G["fonts"], G["heights"])
         place_names(names_acc[level], level, shown, only)
-    out_path = f"{G['work']}/tmp/block-{bx}-{by}.cells"
     index = []
     with open(out_path, "wb") as out:
         for level in (0, 1):
             write_cells(out, index, level, acc[level], names_acc[level])
+    with open(out_path + ".done.part", "wb") as f:
+        pickle.dump((G["run"], os.path.getsize(out_path), index, counts), f, protocol=pickle.HIGHEST_PROTOCOL)
+    os.replace(out_path + ".done.part", out_path + ".done")
     # The contour file is kept for a second run of the same map, but not at the price of the disk: a province
     # holds 10 GB of them, and with the disk full every block waits for room that nothing else makes.
     if shutil.disk_usage(G["work"]).free < 8e9:
@@ -1155,8 +1205,15 @@ def main():
              block_named=by_block([box_of(flat) for _, _, flat in named], blocks, 0))
     log("indexed")
 
-    tasks = [("level", 2), ("level", 3)] + [("block", b) for b in sorted(blocks)]
+    block_list = sorted(blocks)  # from west to east: drop_tiles counts on it
+    tasks = [("level", 2), ("level", 3)] + [("block", b) for b in block_list]
     results, totals, done = [], {}, 0
+    # what a block kept from an earlier run must have been made of: the same map from the same data
+    G["run"] = (os.path.basename(out_file), own, len(source.lines), len(source.areas), len(source.labels), len(named),
+                len(mask), LEVELS, INTERVAL)
+    context = multiprocessing.get_context("fork")
+    makers = workers
+    G["ahead"] = context.BoundedSemaphore(4 * makers)
     gc.collect()
     gc.freeze()  # or the collector of each worker would write to, and so copy, the pages they share
     held, room = memory()
@@ -1164,8 +1221,23 @@ def main():
     if fit < workers:
         log(f"{held / 1e9:.1f} GB held, {room / 1e9:.1f} GB free: {fit} workers and not {workers}")
         workers = fit
-    with multiprocessing.get_context("fork").Pool(workers, initializer=gc.disable) as pool:
-        for task, result in zip(tasks, pool.imap(do_task, tasks, chunksize=1)):
+    per = 1 << (DEM - BLOCK)
+
+    def ready(contour_pool):
+        """The tasks, each block when its contour lines are there."""
+        yield tasks[0]
+        yield tasks[1]
+        column = None
+        for block in contour_pool.imap(make_contours, block_list, chunksize=1):
+            if block[0] != column and not keep_tiles:
+                column = block[0]
+                drop_tiles(column * per - 1)  # all blocks west of this one have their contour lines
+            yield ("block", block)
+
+    with context.Pool(makers, initializer=gc.disable) as contour_pool, context.Pool(workers, initializer=gc.disable) as pool:
+        for task, result in zip(tasks, pool.imap(do_task, ready(contour_pool), chunksize=1)):
+            if task[0] == "block":
+                G["ahead"].release()
             results.append(result)
             done += 1
             path, index, counts, contour_s, build_s = result
@@ -1180,17 +1252,23 @@ def main():
         xs, ys = [c[0] for c in masks[level]], [c[1] for c in masks[level]]
         grids.append((min(xs), min(ys), max(xs) - min(xs) + 1, max(ys) - min(ys) + 1))
     head_size = 28 + 20 * len(LEVELS)
-    directory_at = [head_size]
-    for x0, y0, cols, rows in grids[:-1]:
-        directory_at.append(directory_at[-1] + 12 * cols * rows)
-    data_at = directory_at[-1] + 12 * grids[-1][2] * grids[-1][3]
-    directories = [bytearray(12 * cols * rows) for _, _, cols, rows in grids]
+    data_size = sum(os.path.getsize(path) for path, _, _, _, _ in results)
+    for entry, entry_format, magic in ((12, "<III", b"JMVM"), (16, "<QII", b"JMVW")):
+        directory_at = [head_size]
+        for x0, y0, cols, rows in grids[:-1]:
+            directory_at.append(directory_at[-1] + entry * cols * rows)
+        data_at = directory_at[-1] + entry * grids[-1][2] * grids[-1][3]
+        if data_at + data_size <= WIDE:
+            break
+    if magic == b"JMVW":
+        log(f"{(data_at + data_size) / 1e9:.1f} GB: over what the format holds, written with 64-bit offsets for split.py to cut")
+    directories = [bytearray(entry * cols * rows) for _, _, cols, rows in grids]
     largest, per_level = [0] * len(LEVELS), [0] * len(LEVELS)
     at = data_at
     for path, index, _, _, _ in results:
         for level, cx, cy, offset, lines, names in index:
             x0, y0, cols, rows = grids[level]
-            struct.pack_into("<III", directories[level], 12 * ((cy - y0) * cols + (cx - x0)), at + offset, lines, names)
+            struct.pack_into(entry_format, directories[level], entry * ((cy - y0) * cols + (cx - x0)), at + offset, lines, names)
             largest[level] = max(largest[level], lines)
             per_level[level] += lines + names
         at += os.path.getsize(path)
@@ -1199,7 +1277,7 @@ def main():
     west, north = unmerc(min(xs) / n, min(ys) / n)
     east, south = unmerc((max(xs) + 1) / n, (max(ys) + 1) / n)
     with open(out_file + ".part", "wb") as out:
-        out.write(b"JMVM" + struct.pack("<HH", 4, len(LEVELS)))
+        out.write(magic + struct.pack("<HH", 4, len(LEVELS)))
         out.write(struct.pack("<iiii", int(south * 1e7), int(west * 1e7), int(north * 1e7), int(east * 1e7)))
         out.write(struct.pack("<BBH", min(l[1] for l in LEVELS), max(l[2] for l in LEVELS), 0))
         for (cell_zoom, tile_min, tile_max, _), (x0, y0, cols, rows), where in zip(LEVELS, grids, directory_at):
@@ -1213,8 +1291,11 @@ def main():
                     if not piece:
                         break
                     out.write(piece)
-            os.remove(path)
     os.replace(out_file + ".part", out_file)
+    for path, _, _, _, _ in results:  # only now: a build that ends before this goes on from them
+        for name in (path, path + ".done"):
+            if os.path.exists(name):
+                os.remove(name)
     if not keep_tiles:
         for name in os.listdir(f"{work}/tiles"):
             os.remove(f"{work}/tiles/{name}")
