@@ -853,7 +853,8 @@ def fetch_tile(job):
     x, y, path = job
     if os.path.exists(path):
         return
-    for attempt in range(5):
+    last = None
+    for attempt in range(12):  # about ten minutes in all: the server has slow spells
         try:
             request = urllib.request.Request(DEM_URL.format(z=DEM, x=x, y=y), headers={"User-Agent": "map-tools"})
             with urllib.request.urlopen(request, timeout=60) as response:
@@ -863,14 +864,15 @@ def fetch_tile(job):
             if error.code in (403, 404):
                 data = b""  # no such tile: left empty
                 break
-            time.sleep(2 + attempt * 3)
+            last = error
         except Exception as error:
             if DEM_URL.startswith("file:") and isinstance(getattr(error, "reason", error), FileNotFoundError):
                 data = b""  # a folder of tiles that has none here
                 break
-            time.sleep(2 + attempt * 3)
+            last = error
+        time.sleep(min(60, 2 + attempt * 6))
     else:
-        raise RuntimeError(f"cannot fetch elevation tile {x}/{y}")
+        raise RuntimeError(f"cannot fetch elevation tile {x}/{y}: {last}")
     with open(f"{path}.{os.getpid()}.part", "wb") as f:
         f.write(data)
     os.replace(f"{path}.{os.getpid()}.part", path)
