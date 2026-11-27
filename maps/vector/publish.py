@@ -8,8 +8,11 @@ state/ or province/ of the repository of their region, <M9_MAPS_OWNER>/jinxmesh-
 --readme" puts that file into all repositories there are again, after a change to it). The repository is never fetched whole: each commit is made
 on a copy without the files that are there already, which is removed afterwards. The list stays here, by it
 build-all.py knows the state is done; with a line "published" in it.
+
+The upload takes all of the link unless it is held back: M9_UPLOAD_KBPS, or a number in
+~/.cache/m9-tiles/vector/upload-kbps (read at each push), is the most it sends, in kB a second.
 """
-import json, os, shutil, subprocess, sys, time
+import json, os, shutil, socket, subprocess, sys, threading, time
 
 ROOT = os.environ.get("M9_TILES", os.path.expanduser("~/.cache/m9-tiles"))
 PIECES, CLONE = f"{ROOT}/vector/pieces", f"{ROOT}/vector/maps-repo"
@@ -66,12 +69,104 @@ def ensure(repo):
 BATCH = 1_000_000_000
 
 
-def git(*args, capture=False):
-    done = subprocess.run(["git", "-C", CLONE, "-c", f"user.name={OWNER}", "-c", f"user.email={EMAIL}", *args],
+def git(*args, capture=False, options=()):
+    done = subprocess.run(["git", "-C", CLONE, "-c", f"user.name={OWNER}", "-c", f"user.email={EMAIL}", *options, *args],
                           capture_output=True, text=True)
     if done.returncode:
         raise RuntimeError(f"git {' '.join(args[:3])}: {done.stderr.strip()[-400:]}")
     return done.stdout.strip() if capture else None
+
+
+def upload_limit():
+    """The most to send, in bytes a second; 0: no limit."""
+    text = os.environ.get("M9_UPLOAD_KBPS", "")
+    if not text and os.path.exists(f"{ROOT}/vector/upload-kbps"):
+        text = open(f"{ROOT}/vector/upload-kbps").read()
+    try:
+        return max(0, int(float(text.strip()) * 1000))
+    except ValueError:
+        return 0
+
+
+def slow_proxy(rate):
+    """A proxy on this machine that git pushes through, which lets rate bytes a second out. Returns its port."""
+    lock, state = threading.Lock(), [time.monotonic()]
+
+    def wait(count):  # all connections share the rate
+        with lock:
+            state[0] = max(state[0], time.monotonic() - 0.2) + count / rate
+            pause = state[0] - time.monotonic()
+        if pause > 0:
+            time.sleep(pause)
+
+    def pump(source, sink, limited):
+        try:
+            while True:
+                data = source.recv(16384 if limited else 65536)
+                if not data:
+                    break
+                if limited:
+                    wait(len(data))
+                sink.sendall(data)
+        except OSError:
+            pass
+        for s, how in ((sink, socket.SHUT_WR), (source, socket.SHUT_RD)):
+            try:
+                s.shutdown(how)
+            except OSError:
+                pass
+
+    def serve(client):
+        far = None
+        try:
+            head = b""
+            while b"\r\n\r\n" not in head and len(head) < 8192:
+                more = client.recv(4096)
+                if not more:
+                    return
+                head += more
+            verb, target = head.split(b"\r\n")[0].split()[:2]
+            if verb != b"CONNECT":
+                client.sendall(b"HTTP/1.1 405 Method Not Allowed\r\n\r\n")
+                return
+            host, port = target.decode().rsplit(":", 1)
+            far = socket.create_connection((host, int(port)), timeout=60)
+            far.settimeout(None)
+            client.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            back = threading.Thread(target=pump, args=(far, client, False), daemon=True)
+            back.start()
+            pump(client, far, True)
+            back.join()
+        except (OSError, ValueError):
+            pass
+        finally:
+            for s in (client, far):
+                if s:
+                    s.close()
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(8)
+
+    def accept():
+        while True:
+            client, _ = listener.accept()
+            threading.Thread(target=serve, args=(client,), daemon=True).start()
+
+    threading.Thread(target=accept, daemon=True).start()
+    return listener.getsockname()[1]
+
+
+PROXY = {}
+
+
+def push_options():
+    rate = upload_limit()
+    if not rate:
+        return []
+    if PROXY.get("rate") != rate:
+        PROXY.update(rate=rate, port=slow_proxy(rate))
+    return ["-c", f"http.proxy=http://127.0.0.1:{PROXY['port']}"]
 
 
 def commit(repo, folder, files, message):
@@ -92,7 +187,7 @@ def commit(repo, folder, files, message):
             return git("rev-parse", "HEAD", capture=True)  # nothing new
         tree = git("write-tree", capture=True)
         made = git("commit-tree", tree, "-p", "HEAD", "-m", message, capture=True)
-        git("push", "-q", "origin", f"{made}:refs/heads/main")
+        git("push", "-q", "origin", f"{made}:refs/heads/main", options=push_options())
         there = git("ls-remote", "origin", "refs/heads/main", capture=True).split()[0]
         if there != made:
             raise RuntimeError("the push did not arrive")
