@@ -854,7 +854,7 @@ def fetch_tile(job):
     if os.path.exists(path):
         return
     last = None
-    for attempt in range(12):  # about ten minutes in all: the server has slow spells
+    for attempt in range(65):  # about an hour in all: rides out a network outage
         try:
             request = urllib.request.Request(DEM_URL.format(z=DEM, x=x, y=y), headers={"User-Agent": "map-tools"})
             with urllib.request.urlopen(request, timeout=60) as response:
