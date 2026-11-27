@@ -853,7 +853,7 @@ def fetch_tile(job):
     x, y, path = job
     if os.path.exists(path):
         return
-    last = None
+    last, started = None, time.time()
     for attempt in range(65):  # about an hour in all: rides out a network outage
         try:
             request = urllib.request.Request(DEM_URL.format(z=DEM, x=x, y=y), headers={"User-Agent": "map-tools"})
@@ -873,6 +873,10 @@ def fetch_tile(job):
         time.sleep(min(60, 2 + attempt * 6))
     else:
         raise RuntimeError(f"cannot fetch elevation tile {x}/{y}: {last}")
+    if G.get("tile_rate") and data:  # held back: this thread's share of the download limit
+        pause = len(data) / G["tile_rate"] - (time.time() - started)
+        if pause > 0:
+            time.sleep(pause)
     with open(f"{path}.{os.getpid()}.part", "wb") as f:
         f.write(data)
     os.replace(f"{path}.{os.getpid()}.part", path)
@@ -1218,6 +1222,18 @@ def main():
                 len(mask), LEVELS, INTERVAL)
     context = multiprocessing.get_context("fork")
     makers = workers
+    # M9_DOWNLOAD_KBPS, or a number in the upload-kbps file's neighbor download-kbps: the most the elevation tiles
+    # may take of the link, in kB a second, shared out over the threads that fetch (6 in each maker)
+    limit = os.environ.get("M9_DOWNLOAD_KBPS", "")
+    limit_file = os.path.join(os.environ.get("M9_TILES", os.path.expanduser("~/.cache/m9-tiles")), "vector", "download-kbps")
+    if not limit and os.path.exists(limit_file):
+        limit = open(limit_file).read()
+    try:
+        G["tile_rate"] = float(limit.strip()) * 1000 / (6 * makers)
+    except ValueError:
+        G["tile_rate"] = 0
+    if G["tile_rate"]:
+        log(f"elevation tiles held to {float(limit):.0f} kB a second")
     G["ahead"] = context.BoundedSemaphore(4 * makers)
     gc.collect()
     gc.freeze()  # or the collector of each worker would write to, and so copy, the pages they share
