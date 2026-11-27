@@ -312,6 +312,21 @@ with a byte for its kind; lines are steps from point to point as zigzag varints;
 carry their height in feet; a name carries its place, the zooms it shows at, its turn and its
 text. `make-map.py --info FILE` prints the header and the size of each level.
 
+### Into other formats
+
+`tools/jmv-convert.py` writes what a map holds as GeoJSON, GPX or KML, for other programs. It
+needs Python 3 and nothing else:
+
+```
+python3 tools/jmv-convert.py vermont-3.jmv vermont-4.jmv out.geojson
+python3 tools/jmv-convert.py area.jmv trails.gpx --layers trails,names
+python3 tools/jmv-convert.py --info area.jmv
+```
+
+It takes the finest level. A road that crosses from one cell of the map to the next is two
+lines in the map and two in the output. GPX and KML leave the contour lines out unless
+`--layers` names them. The map browser on the web site saves any area as a `.jmv` to feed it.
+
 ## 11. When something goes wrong
 
 | What you see | Cause | What to do |

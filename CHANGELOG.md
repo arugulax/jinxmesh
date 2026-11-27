@@ -6,7 +6,12 @@ version followed by the JinxMesh firmware commit.
 
 ## Unreleased
 
+Map browser (on the web site, at `/map/`): the maps drawn in the browser straight from the map
+repositories, and any area of them saved as a `.jmv` file of its own.
+
 Map tools:
+
+- `tools/jmv-convert.py` turns `.jmv` files into GeoJSON, GPX or KML. Python 3, nothing to install.
 
 - A map over 4 GB can be built: it is written with 64-bit offsets for `split.py` to cut into
   ordinary pieces. British Columbia and the territories needed this.
