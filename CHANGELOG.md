@@ -14,6 +14,10 @@ Map tools:
   time, and elevation tiles are removed as the build moves east, so the far north no longer
   takes days or fills the disk.
 - A build that was stopped goes on from the blocks it had finished.
+- A state that crosses the 180th meridian (Alaska) builds.
+- Elevation tiles are retried for about an hour, so a network outage no longer ends a build.
+- The link can be spared: `M9_UPLOAD_KBPS` limits what `publish.py` sends, `M9_DOWNLOAD_KBPS`
+  what the build takes for elevation tiles, both in kB a second.
 
 ## 2026-11-24-1246 (2.8.3.9485eff)
 
