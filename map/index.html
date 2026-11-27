@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browse the JinxMesh maps and cut out your own area</title>
+<meta name="description" content="Look at the offline vector maps JinxMesh puts on a ThinkNode M9, right in the browser, and save just the area you need as a map file for the SD card.">
+<link rel="canonical" href="https://jinxmesh.com/map/">
+<meta name="theme-color" content="#0b2a6b">
+<link rel="icon" type="image/png" href="../site/favicon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JinxMesh">
+<meta property="og:title" content="Browse the JinxMesh maps">
+<meta property="og:description" content="The offline maps of the United States and Canada, in the browser. Save just the area you need.">
+<meta property="og:url" content="https://jinxmesh.com/map/">
+<meta property="og:image" content="https://jinxmesh.com/site/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #f6f9fd; --card: #ffffff; --ink: #0d1b33; --muted: #4a5a75; --line: #d7e1ef; --blue: #1b76d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0a1220; --card: #111c30; --ink: #e8eef8; --muted: #a3b2cb; --line: #22324d; --blue: #5fb0ff; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); display: flex; flex-direction: column;
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--blue); }
+  header.top { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px; flex-wrap: wrap; gap: 6px; }
+  header.top .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--ink); text-decoration: none; }
+  header.top img { width: 30px; height: 30px; }
+  nav a { margin-left: 18px; text-decoration: none; color: var(--muted); font-size: 15px; }
+  h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 18px; background: var(--card);
+         border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .bar label { white-space: nowrap; color: var(--muted); }
+  button, select, input[type=text] { font: inherit; font-size: 14.5px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--card); color: var(--ink); }
+  button { font-weight: 600; cursor: pointer; }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  input[type=text] { width: 170px; }
+  form { display: inline-flex; gap: 6px; margin: 0; }
+  #status { color: var(--ink); flex: 1 1 260px; min-height: 1.5em; }
+  .stage { position: relative; flex: 1 1 auto; min-height: 320px; }
+  #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; outline: none; }
+  #map:active { cursor: grabbing; }
+  #map.choosing { cursor: crosshair; }
+  .zoom { position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .zoom button { width: 38px; height: 38px; padding: 0; font-size: 20px; line-height: 1; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); }
+  #note { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); background: var(--card); color: var(--ink);
+          border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px; font-size: 14px; box-shadow: 0 1px 4px rgba(0, 0, 0, .2); }
+  #place { position: absolute; left: 10px; bottom: 8px; background: rgba(255, 255, 255, .8); color: #0d1b33; border-radius: 6px;
+           padding: 1px 8px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .credit { position: absolute; right: 10px; bottom: 8px; background: rgba(255, 255, 255, .8); color: #0d1b33; border-radius: 6px;
+            padding: 1px 8px; font-size: 12.5px; }
+  .credit a { color: #0d4ea6; }
+  footer { padding: 8px 18px 12px; color: var(--muted); font-size: 14px; }
+  footer code { font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="../"><img src="../site/icon.png" alt="" width="30" height="30">JinxMesh</a>
+  <h1>Map browser</h1>
+  <nav aria-label="Site">
+    <a href="../">Home</a>
+    <a href="../flash/">Flasher</a>
+    <a href="https://github.com/arugulax/jinxmesh">GitHub</a>
+  </nav>
+</header>
+
+<div class="bar">
+  <select id="goto" disabled aria-label="Go to a state or province">
+    <option value="">Go to a state or province</option>
+  </select>
+  <form id="find">
+    <input type="text" id="where" placeholder="44.26, -72.58" aria-label="Latitude and longitude">
+    <button>Go</button>
+  </form>
+  <span id="layers">
+    <label><input type="checkbox" value="contours" checked> Contours</label>
+    <label><input type="checkbox" value="water" checked> Water</label>
+    <label><input type="checkbox" value="roads" checked> Roads</label>
+    <label><input type="checkbox" value="trails" checked> Trails</label>
+    <label><input type="checkbox" value="boundaries" checked> Borders</label>
+    <label><input type="checkbox" value="names" checked> Names</label>
+  </span>
+</div>
+
+<div class="bar">
+  <button id="choose">Choose an area</button>
+  <button id="save" class="primary" disabled>Save it as a map file (.jmv)</button>
+  <button id="clear" disabled>Clear</button>
+  <span id="status" role="status" aria-live="polite"></span>
+</div>
+
+<div class="stage">
+  <canvas id="map" tabindex="0" aria-label="Map. Drag to move, scroll or use plus and minus to zoom."></canvas>
+  <div class="zoom">
+    <button id="in" aria-label="Zoom in">+</button>
+    <button id="out" aria-label="Zoom out">&minus;</button>
+  </div>
+  <div id="note" hidden></div>
+  <div id="place"></div>
+  <div class="credit">&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors</div>
+</div>
+
+<footer>
+  This is the map the M9 draws, read from the same files. A saved area goes into a folder below
+  <code>/maps</code> on the SD card, like any other piece. For another program, convert the file on your own
+  computer with <a href="jmv-convert.py" download>jmv-convert.py</a> (Python 3, nothing to install):
+  <code>python3 jmv-convert.py area.jmv area.geojson</code>, or <code>.gpx</code>, or <code>.kml</code>.
+  Whole states are on the <a href="../flash/">flasher page</a>. Map data ODbL; elevation from the Terrain Tiles
+  open dataset.
+</footer>
+
+<script type="module" src="map.js"></script>
+</body>
+</html>
