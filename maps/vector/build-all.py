@@ -130,7 +130,10 @@ def main():
         else:
             failed.append(r)
             log(f"FAILED {r} after {(time.time() - started) / 60:.0f} min")
+        done = not failed or failed[-1] != r
         for folder in ("contours", "tiles", "tmp"):
+            if folder == "tmp" and not done:
+                continue  # the blocks it built stay: the next run of this region goes on from them
             for f in os.listdir(f"{WORK}/{folder}"):
                 os.remove(f"{WORK}/{folder}/{f}")
         needed = set()

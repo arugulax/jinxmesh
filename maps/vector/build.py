@@ -1161,6 +1161,9 @@ def main():
     if poly:
         source.outline = read_poly(poly)
     mask = make_mask(source, box)
+    # a state at the 180th meridian (Alaska) gets cells past the edge of the world from the one-more-around: not cells
+    across = 1 << LEVELS[0][0]
+    mask = {(cx, cy) for cx, cy in mask if 0 <= cx < across and 0 <= cy < across}
     # what is the state's own: the coarse levels are made of that alone
     own = (len(source.lines), len(source.areas), len(source.labels), len(source.named))
     if near:
